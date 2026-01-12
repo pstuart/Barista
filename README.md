@@ -5,8 +5,19 @@
 A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that brews real-time development information including context usage, rate limits, costs, and more.
 
 ![Barista](https://img.shields.io/badge/Barista-Claude_Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
+![Version](https://img.shields.io/badge/Version-1.1.0-green?style=for-the-badge)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
+
+## What's New in v1.1.0 🆕
+
+- **Auto-Update Checking** - Barista now checks GitHub for updates and can self-update
+- **Interactive Installer** - Arrow key navigation with space to toggle selections
+- **Customizable Separators** - Choose from pipe, arrow, bullet, and more
+- **Color Themes** - Default, minimal, vibrant, or monochrome
+- **Display Modes** - Normal, compact, or verbose output
+- **Live Preview** - See your statusline before installing
+- **Bash 3.2 Compatible** - Works with macOS default bash (no brew required)
 
 ## What's On The Menu ☕
 
@@ -50,7 +61,14 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
 ## Fresh Brew Sample
 
 ```
-📁 myproject | 📊 ██████░░ 75%🔴 (10k→⚡) | 🌿 main [●+] 📝 3 | ⚡ Nuxt 🚀 | 🤖 Claude Opus 4.5 (learning) | 💰 $2.50 @$5.00/h | 5h:45%🟡(2h 15m) 7d:23%🟢(4d 12h) | 📅 01/11 🕐 04:30 PM | 🔋 66%
+📁 myproject | 📊 ██████░░ 75%🔴 (10k→⚡) | 🌿 main [●+] 📝 3 | ⚡ Nuxt 🚀 | 🤖 Claude Opus 4.5 | 💰 $2.50 @$5.00/h | 5h:45%🟡 7d:23%🟢 | 📅 01/12 🕐 04:30 PM | 🔋 85%
+```
+
+**With different separators:**
+```
+📁 myproject › 📊 ████░░░░ 50%🟢 › 🌿 main › 🤖 Opus    # Arrow style
+📁 myproject • 📊 ████░░░░ 50%🟢 • 🌿 main • 🤖 Opus    # Bullet style
+DIR: myproject | CTX: ####---- 50%[OK] | GIT: main      # ASCII mode
 ```
 
 ### Temperature Gauge
@@ -87,21 +105,43 @@ cd Barista
 ./install.sh
 ```
 
-The installer will:
-- **Multiselect** - Pick modules by category with range selection (e.g., `1,3,5-7`)
-- Let you customize the order
-- Back up any existing statusline
-- Configure everything automatically
+The interactive installer features:
+- **Arrow key navigation** - Use ↑/↓ to move, Space to toggle, Enter to confirm
+- **Module categories** - Core, System, Dev Tools, and Extra modules
+- **Display customization** - Icons, separators, colors, and themes
+- **Live preview** - See your statusline before installing
+- **Automatic backup** - Your previous statusline is saved
 
 ### Installer Options
 
 ```bash
-./install.sh                 # Interactive multiselect installation
+# Installation
+./install.sh                 # Interactive installation with keyboard navigation
+./install.sh --defaults      # Install with core modules, no prompts
+./install.sh --minimal       # Quick install with minimal modules
+./install.sh --force         # Same as --defaults, no confirmation
+
+# Display options
 ./install.sh --no-emoji      # Install without emojis (ASCII mode)
 ./install.sh --no-color      # Install without colors
-./install.sh --minimal       # Quick install with minimal modules
-./install.sh --defaults      # Install with core modules, no prompts
+
+# Updates
+./install.sh --check-update  # Check if a newer version is available
+./install.sh --update        # Download and install the latest version
+./install.sh --version       # Show current version
+
+# Other
 ./install.sh --uninstall     # Uninstall and restore previous statusline
+./install.sh --help          # Show all options
+```
+
+### Staying Up to Date
+
+Barista automatically checks for updates when you run the installer. You can also manually check:
+
+```bash
+./install.sh --check-update   # Check for updates
+./install.sh --update         # Update to latest version
 ```
 
 ### Manual Brew
@@ -126,12 +166,127 @@ The installer will:
 
 3. **Restart Claude Code** to taste your fresh statusline.
 
+## Customization
+
+### Interactive Display Preferences
+
+The installer lets you customize:
+
+| Setting | Options |
+|---------|---------|
+| **Icon Style** | Emoji icons or ASCII text |
+| **Status Indicators** | 🟢🟡🔴 Emoji, ●●● Dots, or [OK][WARN] ASCII |
+| **Progress Bars** | ████░░ Blocks, ▓▓▓░░ Shaded, ●●●○○ Circles, #### Hash |
+| **Separators** | \| Pipe, ║ Double, › Arrow, • Bullet, : Colon |
+| **Color Themes** | Default, Minimal, Vibrant, Monochrome |
+| **Display Mode** | Normal, Compact, Verbose |
+
+### Configuration Files
+
+Edit `barista.conf` or create `~/.claude/barista.conf` for user overrides.
+
+#### Per-Directory Overrides
+
+Create `.barista.conf` in any project directory to customize the statusline for that project:
+
+```bash
+# ~/myproject/.barista.conf
+# Minimal statusline for this large monorepo
+DISPLAY_MODE="compact"
+MODULE_WEATHER="false"
+MODULE_ORDER="directory,context,git,model"
+```
+
+Configuration is loaded in order of precedence:
+1. Built-in defaults
+2. `~/.claude/barista/barista.conf`
+3. `~/.claude/barista.conf` (user overrides)
+4. `.barista.conf` (per-directory overrides)
+
+### Full Configuration Options
+
+```bash
+# =============================================================================
+# GLOBAL SETTINGS
+# =============================================================================
+
+SEPARATOR=" | "           # Section separator (or " › ", " • ", etc.)
+DISPLAY_MODE="normal"     # "normal", "compact", "verbose"
+COLOR_THEME="default"     # "default", "minimal", "vibrant", "monochrome"
+USE_ICONS="true"          # Enable emoji icons
+STATUS_STYLE="emoji"      # "emoji", "ascii", "dots"
+
+# Progress bar customization
+PROGRESS_BAR_WIDTH=8
+PROGRESS_BAR_FILLED="█"   # Or "▓", "●", "#"
+PROGRESS_BAR_EMPTY="░"    # Or "░", "○", "-"
+
+# =============================================================================
+# MODULE ENABLE/DISABLE
+# =============================================================================
+
+# Core modules (on by default)
+MODULE_DIRECTORY="true"
+MODULE_CONTEXT="true"
+MODULE_GIT="true"
+MODULE_PROJECT="true"
+MODULE_MODEL="true"
+MODULE_COST="true"
+MODULE_RATE_LIMITS="true"
+MODULE_TIME="true"
+MODULE_BATTERY="true"
+
+# System modules (off by default)
+MODULE_CPU="false"
+MODULE_MEMORY="false"
+MODULE_DISK="false"
+MODULE_NETWORK="false"
+MODULE_LOAD="false"
+
+# Custom order
+MODULE_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
+```
+
+### Preset Recipes
+
+**Espresso (Minimal):**
+```bash
+DISPLAY_MODE="compact"
+SEPARATOR=" › "
+MODULE_ORDER="directory,context,git,model"
+```
+
+**Americano (Developer):**
+```bash
+MODULE_CPU="true"
+MODULE_MEMORY="true"
+MODULE_DOCKER="true"
+MODULE_ORDER="directory,git,docker,cpu,memory,model,cost,rate-limits,battery"
+```
+
+**Decaf (ASCII-only):**
+```bash
+USE_ICONS="false"
+STATUS_STYLE="ascii"
+SEPARATOR=" | "
+PROGRESS_BAR_FILLED="#"
+PROGRESS_BAR_EMPTY="-"
+```
+
+**Monochrome (Minimal colors):**
+```bash
+COLOR_THEME="monochrome"
+STATUS_STYLE="dots"
+SEPARATOR=" • "
+```
+
 ## The Menu (Architecture)
 
 ```
 ~/.claude/barista/
 ├── barista.sh          # Main entry point
 ├── barista.conf        # Configuration file
+├── VERSION             # Version tracking
 └── modules/
     ├── utils.sh        # Shared utility functions
     ├── directory.sh    # Directory module
@@ -143,19 +298,7 @@ The installer will:
     ├── rate-limits.sh  # Rate limits module
     ├── time.sh         # Date/time module
     ├── battery.sh      # Battery module
-    ├── cpu.sh          # CPU usage module
-    ├── memory.sh       # Memory usage module
-    ├── disk.sh         # Disk space module
-    ├── network.sh      # Network info module
-    ├── uptime.sh       # System uptime module
-    ├── load.sh         # Load average module
-    ├── temperature.sh  # CPU temperature module
-    ├── brightness.sh   # Screen brightness module
-    ├── processes.sh    # Process count module
-    ├── docker.sh       # Docker status module
-    ├── node.sh         # Node.js version module
-    ├── weather.sh      # Weather module
-    └── timezone.sh     # Timezone module
+    └── ...             # Additional modules
 ```
 
 ### Crafting Custom Modules
@@ -180,90 +323,6 @@ MODULE_MYCUSTOM="true"
 MODULE_ORDER="...,mycustom,..."
 ```
 
-## Configuration
-
-Edit `barista.conf` or create `~/.claude/barista.conf` for user overrides.
-
-### Per-Directory Overrides
-
-Create `.barista.conf` in any project directory to customize the statusline for that project:
-
-```bash
-# ~/myproject/.barista.conf
-# Minimal statusline for this large monorepo
-DISPLAY_MODE="compact"
-MODULE_WEATHER="false"
-MODULE_ORDER="directory,context,git,model"
-```
-
-Configuration is loaded in order of precedence:
-1. Built-in defaults
-2. `~/.claude/barista/barista.conf`
-3. `~/.claude/barista.conf` (user overrides)
-4. `.barista.conf` (per-directory overrides)
-
-### The Full Menu (650+ config options)
-
-```bash
-# =============================================================================
-# GLOBAL SETTINGS
-# =============================================================================
-
-SEPARATOR=" | "           # Section separator
-DISPLAY_MODE="normal"     # "normal", "compact", "verbose"
-USE_ICONS="true"          # Enable emoji icons
-USE_STATUS_INDICATORS="true"
-STATUS_STYLE="emoji"      # "emoji", "ascii", "dots"
-
-# =============================================================================
-# MODULE ENABLE/DISABLE
-# =============================================================================
-
-# Core modules (on by default)
-MODULE_DIRECTORY="true"
-MODULE_CONTEXT="true"
-MODULE_GIT="true"
-MODULE_PROJECT="true"
-MODULE_MODEL="true"
-MODULE_COST="true"
-MODULE_RATE_LIMITS="true"
-MODULE_TIME="true"
-MODULE_BATTERY="true"
-
-# System modules (off by default)
-MODULE_CPU="false"
-MODULE_MEMORY="false"
-MODULE_DISK="false"
-# ... and many more
-
-# Custom order
-MODULE_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
-```
-
-### Preset Recipes
-
-**Espresso (Minimal):**
-```bash
-DISPLAY_MODE="compact"
-MODULE_ORDER="directory,context,git,rate-limits"
-```
-
-**Americano (Developer):**
-```bash
-MODULE_CPU="true"
-MODULE_MEMORY="true"
-MODULE_DOCKER="true"
-MODULE_ORDER="directory,git,docker,cpu,memory,model,cost,rate-limits,battery"
-```
-
-**Decaf (ASCII-only):**
-```bash
-USE_ICONS="false"
-STATUS_STYLE="ascii"
-PROGRESS_BAR_FILLED="#"
-PROGRESS_BAR_EMPTY="-"
-```
-
 ## Troubleshooting
 
 ### Rate limits show "--"
@@ -275,6 +334,10 @@ PROGRESS_BAR_EMPTY="-"
 - Check file permissions: `chmod +x barista.sh`
 - Verify module files exist in `modules/` directory
 - Enable debug mode: `DEBUG_MODE="true"`
+
+### Arrow keys not working in installer
+- Make sure you're running in a proper terminal (not a script)
+- Try a different terminal emulator if issues persist
 
 ### Testing manually
 ```bash
@@ -311,6 +374,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 **Enjoy your fresh brew!** ☕
 
-*Barista - Because your Claude Code deserves a great statusline.*
+*Barista v1.1.0 - Because your Claude Code deserves a great statusline.*
 
 </div>
