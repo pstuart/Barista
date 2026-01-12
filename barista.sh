@@ -11,7 +11,7 @@
 #
 # Author: Patrick D. Stuart (https://github.com/pstuart)
 # License: MIT
-# Requires: Bash 4.0+ (for associative arrays), jq
+# Requires: jq
 # =============================================================================
 
 # Determine script directory (handles symlinks)
@@ -124,32 +124,36 @@ done
 # =============================================================================
 # MODULE REGISTRY
 # =============================================================================
-# Maps module names to their functions and config variables
+# Maps module names to their functions (compatible with Bash 3.2+)
 
-declare -A MODULE_FUNCTIONS=(
-    [directory]="module_directory"
-    [context]="module_context"
-    [git]="module_git"
-    [project]="module_project"
-    [model]="module_model"
-    [cost]="module_cost"
-    [rate-limits]="module_rate_limits"
-    [time]="module_time"
-    [battery]="module_battery"
-    [cpu]="module_cpu"
-    [memory]="module_memory"
-    [disk]="module_disk"
-    [network]="module_network"
-    [uptime]="module_uptime"
-    [load]="module_load"
-    [temperature]="module_temperature"
-    [brightness]="module_brightness"
-    [docker]="module_docker"
-    [node]="module_node"
-    [processes]="module_processes"
-    [weather]="module_weather"
-    [timezone]="module_timezone"
-)
+get_module_function() {
+    local module_name="$1"
+    case "$module_name" in
+        directory)    echo "module_directory" ;;
+        context)      echo "module_context" ;;
+        git)          echo "module_git" ;;
+        project)      echo "module_project" ;;
+        model)        echo "module_model" ;;
+        cost)         echo "module_cost" ;;
+        rate-limits)  echo "module_rate_limits" ;;
+        time)         echo "module_time" ;;
+        battery)      echo "module_battery" ;;
+        cpu)          echo "module_cpu" ;;
+        memory)       echo "module_memory" ;;
+        disk)         echo "module_disk" ;;
+        network)      echo "module_network" ;;
+        uptime)       echo "module_uptime" ;;
+        load)         echo "module_load" ;;
+        temperature)  echo "module_temperature" ;;
+        brightness)   echo "module_brightness" ;;
+        docker)       echo "module_docker" ;;
+        node)         echo "module_node" ;;
+        processes)    echo "module_processes" ;;
+        weather)      echo "module_weather" ;;
+        timezone)     echo "module_timezone" ;;
+        *)            echo "" ;;
+    esac
+}
 
 # =============================================================================
 # MODULE EXECUTION
@@ -161,7 +165,8 @@ run_module() {
     local input_json="$3"
 
     # Get function name from registry
-    local func_name="${MODULE_FUNCTIONS[$module_name]}"
+    local func_name
+    func_name=$(get_module_function "$module_name")
 
     if [ -z "$func_name" ]; then
         log_debug "Unknown module: $module_name"
@@ -222,7 +227,9 @@ validate_module_order() {
     IFS=','
     for module in $order; do
         module=$(echo "$module" | tr -d ' ')
-        if [ -z "${MODULE_FUNCTIONS[$module]}" ]; then
+        local func_name
+        func_name=$(get_module_function "$module")
+        if [ -z "$func_name" ]; then
             log_debug "Warning: Unknown module in MODULE_ORDER: $module"
         fi
     done

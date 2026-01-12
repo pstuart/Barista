@@ -64,17 +64,14 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
 ## Requirements
 
 - **Claude Code CLI** - [Installation Guide](https://docs.anthropic.com/en/docs/claude-code)
-- **Bash 4.0+** - Required for associative arrays (macOS ships with 3.2, install newer via `brew install bash`)
+- **Bash 3.2+** - Works with macOS default bash
 - **jq** - JSON processor (required)
 - **bc** - Basic calculator (usually pre-installed)
 - **macOS** - For battery and OAuth keychain access (Linux support partial)
 
 ```bash
 # Install dependencies on macOS
-brew install bash jq
-
-# Check your bash version
-bash --version
+brew install jq
 ```
 
 ## Installation

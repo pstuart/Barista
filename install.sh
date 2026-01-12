@@ -1277,8 +1277,46 @@ do_install() {
 
     print_success "Installed statusline to $BARISTA_DIR"
 
-    # Update settings.json
-    print_info "Configuring settings.json..."
+    # Test installation BEFORE applying to settings.json
+    echo ""
+    print_info "Testing statusline before applying..."
+
+    local test_json='{"workspace":{"current_dir":"'"$HOME"'"},"model":{"display_name":"Test"},"output_style":{"name":"default"},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":1000}}}'
+    local test_output
+    local test_errors
+
+    # Capture both stdout and stderr
+    test_output=$("$BARISTA_DIR/barista.sh" <<< "$test_json" 2>&1)
+    local test_exit_code=$?
+
+    # Check for bash errors in output
+    if echo "$test_output" | grep -q "declare: -A: invalid option\|syntax error\|command not found"; then
+        print_error "Statusline test FAILED - script errors detected:"
+        echo ""
+        echo "  $test_output"
+        echo ""
+        print_error "Installation aborted. Settings not modified."
+        print_info "Fix the errors above and try again."
+        exit 1
+    fi
+
+    # Check for valid output
+    if [ -z "$test_output" ] || [ ${#test_output} -lt 5 ]; then
+        print_error "Statusline test FAILED - no output produced"
+        echo ""
+        print_error "Installation aborted. Settings not modified."
+        print_info "Try running manually: echo '$test_json' | $BARISTA_DIR/barista.sh"
+        exit 1
+    fi
+
+    print_success "Statusline test passed!"
+    echo ""
+    echo "Sample output:"
+    echo "  $test_output"
+    echo ""
+
+    # Update settings.json only after successful test
+    print_info "Applying configuration to settings.json..."
 
     if [ -f "$SETTINGS_FILE" ]; then
         local tmp_file=$(mktemp)
@@ -1299,23 +1337,6 @@ do_install() {
 }
 EOF
         print_success "Created settings.json"
-    fi
-
-    # Test installation
-    print_info "Verifying installation..."
-
-    local test_json='{"workspace":{"current_dir":"'"$HOME"'"},"model":{"display_name":"Test"},"output_style":{"name":"default"},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":1000}}}'
-    local test_output
-    test_output=$(echo "$test_json" | "$BARISTA_DIR/barista.sh" 2>&1)
-
-    if [ -n "$test_output" ] && [ ${#test_output} -gt 5 ]; then
-        print_success "Statusline test passed!"
-        echo ""
-        echo "Sample output:"
-        echo "  $test_output"
-    else
-        print_warning "Statusline produced minimal output - check for errors"
-        print_info "Try running: echo '$test_json' | ~/.claude/barista/barista.sh"
     fi
 
     # Final message
