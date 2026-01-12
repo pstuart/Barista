@@ -18,11 +18,14 @@
 # Do NOT use set -e - we handle errors explicitly
 
 # =============================================================================
-# CONFIGURATION FLAGS (can be set via command line)
+# CONFIGURATION FLAGS (can be set via command line or interactively)
 # =============================================================================
 USE_EMOJI="true"
 USE_COLOR="true"
 INSTALL_MODE="interactive"
+STATUS_STYLE="emoji"
+PROGRESS_FILLED="█"
+PROGRESS_EMPTY="░"
 
 # =============================================================================
 # COLOR DEFINITIONS
@@ -526,6 +529,106 @@ interactive_module_ordering() {
 }
 
 # =============================================================================
+# DISPLAY PREFERENCES
+# =============================================================================
+interactive_display_preferences() {
+    echo ""
+    local style_icon=$(emoji "🎨" "[STY]")
+    print_header "$style_icon Display Preferences"
+    echo ""
+
+    # Emoji preference
+    echo -e "${BOLD}Icon Style:${NC}"
+    echo ""
+    echo "  1) $(emoji '📁' '[D]') Emoji icons (default)"
+    echo "     Example: 📁 myproject | 📊 ████░░ 75% | 🌿 main"
+    echo ""
+    echo "  2) [D] ASCII/Text mode (no emojis)"
+    echo "     Example: DIR: myproject | CTX: #### 75% | GIT: main"
+    echo ""
+
+    read -p "  Choose style [1-2, default=1]: " icon_choice
+
+    case "$icon_choice" in
+        2)
+            USE_EMOJI="false"
+            print_success "Using ASCII/Text mode (no emojis)"
+            ;;
+        *)
+            USE_EMOJI="true"
+            print_success "Using Emoji icons"
+            ;;
+    esac
+
+    echo ""
+
+    # Status indicator style
+    echo -e "${BOLD}Status Indicators:${NC}"
+    echo ""
+    if [ "$USE_EMOJI" = "true" ]; then
+        echo "  1) 🟢🟡🔴 Emoji circles (default)"
+        echo "  2) ●●● Colored dots"
+        echo "  3) [OK][WARN][CRIT] ASCII text"
+    else
+        echo "  1) [OK][WARN][CRIT] ASCII text (default for text mode)"
+        echo "  2) ●●● Dots"
+    fi
+    echo ""
+
+    read -p "  Choose indicator style [1-${USE_EMOJI:+3}${USE_EMOJI:-2}, default=1]: " status_choice
+
+    if [ "$USE_EMOJI" = "true" ]; then
+        case "$status_choice" in
+            2) STATUS_STYLE="dots" ;;
+            3) STATUS_STYLE="ascii" ;;
+            *) STATUS_STYLE="emoji" ;;
+        esac
+    else
+        case "$status_choice" in
+            2) STATUS_STYLE="dots" ;;
+            *) STATUS_STYLE="ascii" ;;
+        esac
+    fi
+
+    echo ""
+
+    # Progress bar style
+    echo -e "${BOLD}Progress Bar Style:${NC}"
+    echo ""
+    if [ "$USE_EMOJI" = "true" ]; then
+        echo "  1) ████░░░░ Block style (default)"
+        echo "  2) ▓▓▓▓░░░░ Shaded blocks"
+        echo "  3) ●●●●○○○○ Circles"
+        echo "  4) ####---- ASCII"
+    else
+        echo "  1) ####---- ASCII (default for text mode)"
+        echo "  2) ====---- Equals"
+        echo "  3) ****.... Stars"
+    fi
+    echo ""
+
+    if [ "$USE_EMOJI" = "true" ]; then
+        read -p "  Choose progress bar style [1-4, default=1]: " bar_choice
+        case "$bar_choice" in
+            2) PROGRESS_FILLED="▓"; PROGRESS_EMPTY="░" ;;
+            3) PROGRESS_FILLED="●"; PROGRESS_EMPTY="○" ;;
+            4) PROGRESS_FILLED="#"; PROGRESS_EMPTY="-" ;;
+            *) PROGRESS_FILLED="█"; PROGRESS_EMPTY="░" ;;
+        esac
+    else
+        read -p "  Choose progress bar style [1-3, default=1]: " bar_choice
+        case "$bar_choice" in
+            2) PROGRESS_FILLED="="; PROGRESS_EMPTY="-" ;;
+            3) PROGRESS_FILLED="*"; PROGRESS_EMPTY="." ;;
+            *) PROGRESS_FILLED="#"; PROGRESS_EMPTY="-" ;;
+        esac
+    fi
+
+    echo ""
+    print_success "Display preferences saved"
+}
+
+# =============================================================================
 # CONFIGURATION GENERATION
 # =============================================================================
 generate_config() {
@@ -542,16 +645,20 @@ generate_config() {
 
 HEADER
 
-    # Write global settings based on installer flags
+    # Write global settings based on installer selections
     echo "# Global Settings" >> "$config_file"
     if [ "$USE_EMOJI" = "false" ]; then
         echo 'USE_ICONS="false"' >> "$config_file"
-        echo 'STATUS_STYLE="ascii"' >> "$config_file"
-        echo 'PROGRESS_BAR_FILLED="#"' >> "$config_file"
-        echo 'PROGRESS_BAR_EMPTY="-"' >> "$config_file"
     else
         echo 'USE_ICONS="true"' >> "$config_file"
     fi
+
+    # Status style
+    echo "STATUS_STYLE=\"${STATUS_STYLE:-emoji}\"" >> "$config_file"
+
+    # Progress bar characters
+    echo "PROGRESS_BAR_FILLED=\"${PROGRESS_FILLED:-█}\"" >> "$config_file"
+    echo "PROGRESS_BAR_EMPTY=\"${PROGRESS_EMPTY:-░}\"" >> "$config_file"
     echo "" >> "$config_file"
 
     # Write module enable/disable settings
@@ -948,6 +1055,7 @@ do_install() {
         interactive)
             interactive_module_selection
             interactive_module_ordering
+            interactive_display_preferences
             ;;
         minimal)
             # Just directory, context, git, model
@@ -983,10 +1091,16 @@ do_install() {
     echo -e "Preview: ${DIM}$preview${NC}"
     echo ""
 
-    if [ "$USE_EMOJI" = "false" ]; then
-        echo -e "${DIM}(Icons disabled - using text mode)${NC}"
-        echo ""
+    # Show display settings
+    echo -e "${DIM}Display settings:${NC}"
+    if [ "$USE_EMOJI" = "true" ]; then
+        echo -e "  ${DIM}Icons: Emoji${NC}"
+    else
+        echo -e "  ${DIM}Icons: ASCII/Text${NC}"
     fi
+    echo -e "  ${DIM}Status: ${STATUS_STYLE}${NC}"
+    echo -e "  ${DIM}Progress: ${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${NC}"
+    echo ""
 
     if [ "$mode" = "interactive" ]; then
         read -p "Proceed with installation? [Y/n]: " final_confirm
