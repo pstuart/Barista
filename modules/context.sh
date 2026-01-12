@@ -21,25 +21,35 @@ module_context() {
     local show_status="${CONTEXT_SHOW_STATUS:-true}"
     local show_tokens="${CONTEXT_SHOW_TOKENS_REMAINING:-true}"
     local compact_icon="${CONTEXT_COMPACT_ICON:-⚡}"
-    local warn_thresh="${CONTEXT_WARNING_THRESHOLD:-60}"
-    local crit_thresh="${CONTEXT_CRITICAL_THRESHOLD:-75}"
-    local compact_thresh="${CONTEXT_COMPACT_THRESHOLD:-80}"
+    local warn_thresh=$(safe_int "${CONTEXT_WARNING_THRESHOLD:-60}" 60)
+    local crit_thresh=$(safe_int "${CONTEXT_CRITICAL_THRESHOLD:-75}" 75)
+    local compact_thresh=$(safe_int "${CONTEXT_COMPACT_THRESHOLD:-80}" 80)
 
-    local context_size=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
-    local usage=$(echo "$input" | jq '.context_window.current_usage')
+    # Safely extract context window size with proper default
+    local context_size=$(json_get_int "$input" '.context_window.context_window_size' 1)
 
-    if [ "$usage" != "null" ] && [ "$context_size" -gt 0 ] 2>/dev/null; then
-        # Get all token types
-        local input_tokens=$(echo "$usage" | jq '.input_tokens // 0')
-        local cache_creation=$(echo "$usage" | jq '.cache_creation_input_tokens // 0')
-        local cache_read=$(echo "$usage" | jq '.cache_read_input_tokens // 0')
-        local output_tokens=$(echo "$usage" | jq '.output_tokens // 0')
+    # Ensure context_size is never zero to avoid division errors
+    if [ "$context_size" -le 0 ] 2>/dev/null; then
+        context_size=200000  # Default Claude context size
+    fi
+
+    # Get usage data
+    local usage=$(echo "$input" | jq '.context_window.current_usage' 2>/dev/null)
+
+    if [ -n "$usage" ] && [ "$usage" != "null" ]; then
+        # Get all token types with safe defaults
+        local input_tokens=$(json_get_int "$usage" '.input_tokens' 0)
+        local cache_creation=$(json_get_int "$usage" '.cache_creation_input_tokens' 0)
+        local cache_read=$(json_get_int "$usage" '.cache_read_input_tokens' 0)
+        local output_tokens=$(json_get_int "$usage" '.output_tokens' 0)
 
         # Calculate total
         local current_tokens=$((input_tokens + cache_creation + cache_read + output_tokens))
-        local context_percent=$((current_tokens * 100 / context_size))
 
-        # Calculate tokens until compact
+        # Safe percentage calculation
+        local context_percent=$(safe_percent "$current_tokens" "$context_size" 0)
+
+        # Calculate tokens until compact (safe math)
         local compact_threshold=$((context_size * compact_thresh / 100))
         local tokens_until_compact=$((compact_threshold - current_tokens))
         if [ "$tokens_until_compact" -lt 0 ]; then
@@ -74,11 +84,21 @@ module_context() {
 
         echo "$result"
     else
-        # No data - show minimal output
+        # No data - show minimal output with zeros
+        local result="$icon"
+
         if [ "$show_bar" = "true" ]; then
-            echo "$icon $(progress_bar 0) 0%$(get_status 0 "$warn_thresh" "$crit_thresh")"
-        else
-            echo "$icon 0%$(get_status 0 "$warn_thresh" "$crit_thresh")"
+            result="$result $(progress_bar 0)"
         fi
+
+        if [ "$show_pct" = "true" ]; then
+            result="$result 0%"
+        fi
+
+        if [ "$show_status" = "true" ]; then
+            result="$result$(get_status 0 "$warn_thresh" "$crit_thresh")"
+        fi
+
+        echo "$result"
     fi
 }

@@ -1,13 +1,155 @@
 # =============================================================================
 # Utils Module - Shared utility functions
 # =============================================================================
+# This module provides common functions used by all other modules.
+# It must be loaded first before any other modules.
+# =============================================================================
+
+# =============================================================================
+# CACHE SYSTEM
+# =============================================================================
+# Simple file-based caching for expensive operations (weather, network, etc.)
+
+CACHE_DIR="${HOME}/.claude/barista-cache"
+
+# Initialize cache directory
+init_cache() {
+    if [ ! -d "$CACHE_DIR" ]; then
+        mkdir -p "$CACHE_DIR" 2>/dev/null
+    fi
+}
+
+# Get cached value if not expired
+# Usage: cache_get <key> [max_age_seconds]
+# Returns: cached value or empty string if expired/missing
+cache_get() {
+    local key="$1"
+    local max_age="${2:-${CACHE_MAX_AGE:-60}}"
+    local cache_file="$CACHE_DIR/${key}"
+
+    if [ ! -f "$cache_file" ]; then
+        return 1
+    fi
+
+    # Check age
+    local file_time
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        file_time=$(stat -f %m "$cache_file" 2>/dev/null)
+    else
+        file_time=$(stat -c %Y "$cache_file" 2>/dev/null)
+    fi
+
+    if [ -z "$file_time" ]; then
+        return 1
+    fi
+
+    local current_time=$(date +%s)
+    local age=$((current_time - file_time))
+
+    if [ "$age" -gt "$max_age" ] 2>/dev/null; then
+        # Cache expired
+        return 1
+    fi
+
+    # Return cached value
+    cat "$cache_file" 2>/dev/null
+    return 0
+}
+
+# Set cache value
+# Usage: cache_set <key> <value>
+cache_set() {
+    local key="$1"
+    local value="$2"
+
+    init_cache
+
+    local cache_file="$CACHE_DIR/${key}"
+    echo "$value" > "$cache_file" 2>/dev/null
+}
+
+# Clear specific cache key or all cache
+# Usage: cache_clear [key]
+cache_clear() {
+    local key="$1"
+
+    if [ -n "$key" ]; then
+        rm -f "$CACHE_DIR/${key}" 2>/dev/null
+    else
+        rm -rf "$CACHE_DIR" 2>/dev/null
+    fi
+}
+
+# =============================================================================
+# SAFE NUMBER HANDLING
+# =============================================================================
+# Functions to handle null/empty/invalid numeric values safely
+
+# Safely convert value to integer, with default
+# Usage: safe_int <value> [default]
+safe_int() {
+    local val="$1"
+    local default="${2:-0}"
+
+    # Handle null, empty, or invalid
+    if [ -z "$val" ] || [ "$val" = "null" ] || [ "$val" = "undefined" ]; then
+        echo "$default"
+        return
+    fi
+
+    # Remove any decimal portion
+    val="${val%%.*}"
+
+    # Check if it's a valid integer
+    if echo "$val" | grep -qE '^-?[0-9]+$'; then
+        echo "$val"
+    else
+        echo "$default"
+    fi
+}
+
+# Safe division that avoids divide by zero
+# Usage: safe_divide <numerator> <denominator> [default]
+safe_divide() {
+    local num=$(safe_int "$1" 0)
+    local denom=$(safe_int "$2" 1)
+    local default="${3:-0}"
+
+    # Avoid divide by zero
+    if [ "$denom" -eq 0 ] 2>/dev/null; then
+        echo "$default"
+        return
+    fi
+
+    echo $((num / denom))
+}
+
+# Safe percentage calculation
+# Usage: safe_percent <value> <total> [default]
+safe_percent() {
+    local value=$(safe_int "$1" 0)
+    local total=$(safe_int "$2" 1)
+    local default="${3:-0}"
+
+    # Avoid divide by zero
+    if [ "$total" -eq 0 ] 2>/dev/null; then
+        echo "$default"
+        return
+    fi
+
+    echo $((value * 100 / total))
+}
+
+# =============================================================================
+# STATUS INDICATORS
+# =============================================================================
 
 # Get status indicator based on value and thresholds
 # Usage: get_status <value> <warning_threshold> <critical_threshold>
 get_status() {
-    local value=$1
-    local warning=${2:-60}
-    local critical=${3:-80}
+    local value=$(safe_int "$1" 0)
+    local warning=$(safe_int "$2" 60)
+    local critical=$(safe_int "$3" 80)
 
     if [ "${USE_STATUS_INDICATORS:-true}" != "true" ]; then
         echo ""
@@ -40,6 +182,10 @@ get_status() {
     fi
 }
 
+# =============================================================================
+# ICON HANDLING
+# =============================================================================
+
 # Get icon based on USE_ICONS setting
 # Usage: get_icon <icon> <fallback_text>
 get_icon() {
@@ -53,19 +199,27 @@ get_icon() {
     fi
 }
 
+# =============================================================================
+# STRING UTILITIES
+# =============================================================================
+
 # Truncate string to max length
 # Usage: truncate_string <string> <max_length>
 truncate_string() {
     local str="$1"
-    local max_len=${2:-0}
+    local max_len=$(safe_int "$2" 0)
 
-    if [ "$max_len" -gt 0 ] 2>/dev/null && [ ${#str} -gt "$max_len" ]; then
-        local truncated=$(echo "$str" | cut -c1-$((max_len-3)))
+    if [ "$max_len" -gt 0 ] && [ ${#str} -gt "$max_len" ]; then
+        local truncated="${str:0:$((max_len-3))}"
         echo "${truncated}..."
     else
         echo "$str"
     fi
 }
+
+# =============================================================================
+# DISPLAY MODE CHECKS
+# =============================================================================
 
 # Check if in compact mode (global or module-specific)
 # Usage: is_compact <module_compact_var>
@@ -86,17 +240,24 @@ is_verbose() {
     return 1  # false
 }
 
+# =============================================================================
+# PROGRESS BAR
+# =============================================================================
+
 # Generate a progress bar
 # Usage: progress_bar <percentage> [width] [filled_char] [empty_char]
 progress_bar() {
-    local percent=$1
-    local width=${2:-${PROGRESS_BAR_WIDTH:-8}}
-    local filled_char=${3:-${PROGRESS_BAR_FILLED:-█}}
-    local empty_char=${4:-${PROGRESS_BAR_EMPTY:-░}}
+    local percent=$(safe_int "$1" 0)
+    local width=$(safe_int "$2" "${PROGRESS_BAR_WIDTH:-8}")
+    local filled_char="${3:-${PROGRESS_BAR_FILLED:-█}}"
+    local empty_char="${4:-${PROGRESS_BAR_EMPTY:-░}}"
 
     # Clamp percentage to 0-100
-    if [ "$percent" -lt 0 ] 2>/dev/null; then percent=0; fi
-    if [ "$percent" -gt 100 ] 2>/dev/null; then percent=100; fi
+    if [ "$percent" -lt 0 ]; then percent=0; fi
+    if [ "$percent" -gt 100 ]; then percent=100; fi
+
+    # Avoid division by zero with width
+    if [ "$width" -le 0 ]; then width=8; fi
 
     local filled=$((percent * width / 100))
     local empty=$((width - filled))
@@ -116,10 +277,15 @@ progress_bar() {
     echo "$bar"
 }
 
+# =============================================================================
+# TIME FORMATTING
+# =============================================================================
+
 # Format seconds into human-readable time (e.g., "2h 15m" or "3d 5h")
 format_time_remaining() {
-    local seconds=$1
-    if [ "$seconds" -le 0 ] 2>/dev/null; then
+    local seconds=$(safe_int "$1" 0)
+
+    if [ "$seconds" -le 0 ]; then
         echo "now"
         return
     fi
@@ -137,21 +303,75 @@ format_time_remaining() {
     fi
 }
 
+# =============================================================================
+# NUMBER FORMATTING
+# =============================================================================
+
 # Format large numbers with k/M suffix
 format_number() {
-    local num=$1
-    if [ "$num" -ge 1000000 ] 2>/dev/null; then
+    local num=$(safe_int "$1" 0)
+
+    if [ "$num" -ge 1000000 ]; then
         echo "$((num / 1000000))M"
-    elif [ "$num" -ge 1000 ] 2>/dev/null; then
+    elif [ "$num" -ge 1000 ]; then
         echo "$((num / 1000))k"
     else
         echo "$num"
     fi
 }
 
+# =============================================================================
+# LOGGING
+# =============================================================================
+
 # Debug logging
 log_debug() {
-    if [ "$DEBUG_MODE" = "true" ]; then
-        echo "[$(date '+%H:%M:%S')] $1" >> "$HOME/.claude/statusline.log"
+    if [ "${DEBUG_MODE:-false}" = "true" ]; then
+        local log_file="${HOME}/.claude/barista.log"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$log_file" 2>/dev/null
     fi
+}
+
+# Log error (always logs if DEBUG_MODE is on)
+log_error() {
+    log_debug "ERROR: $1"
+}
+
+# =============================================================================
+# JSON PARSING HELPERS
+# =============================================================================
+
+# Safely extract JSON value with default
+# Usage: json_get <json> <path> [default]
+# Note: Requires jq
+json_get() {
+    local json="$1"
+    local path="$2"
+    local default="${3:-}"
+
+    if [ -z "$json" ] || [ "$json" = "null" ]; then
+        echo "$default"
+        return
+    fi
+
+    local value
+    value=$(echo "$json" | jq -r "$path // empty" 2>/dev/null)
+
+    if [ -z "$value" ] || [ "$value" = "null" ]; then
+        echo "$default"
+    else
+        echo "$value"
+    fi
+}
+
+# Safely extract numeric JSON value
+# Usage: json_get_int <json> <path> [default]
+json_get_int() {
+    local json="$1"
+    local path="$2"
+    local default="${3:-0}"
+
+    local value
+    value=$(json_get "$json" "$path" "$default")
+    safe_int "$value" "$default"
 }

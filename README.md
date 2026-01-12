@@ -64,13 +64,17 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
 ## Requirements
 
 - **Claude Code CLI** - [Installation Guide](https://docs.anthropic.com/en/docs/claude-code)
+- **Bash 4.0+** - Required for associative arrays (macOS ships with 3.2, install newer via `brew install bash`)
 - **jq** - JSON processor (required)
 - **bc** - Basic calculator (usually pre-installed)
 - **macOS** - For battery and OAuth keychain access (Linux support partial)
 
 ```bash
-# Install jq on macOS
-brew install jq
+# Install dependencies on macOS
+brew install bash jq
+
+# Check your bash version
+bash --version
 ```
 
 ## Installation
@@ -87,10 +91,21 @@ cd Barista
 ```
 
 The installer will:
-- Let you pick which modules to include (by category)
+- **Multiselect** - Pick modules by category with range selection (e.g., `1,3,5-7`)
 - Let you customize the order
 - Back up any existing statusline
 - Configure everything automatically
+
+### Installer Options
+
+```bash
+./install.sh                 # Interactive multiselect installation
+./install.sh --no-emoji      # Install without emojis (ASCII mode)
+./install.sh --no-color      # Install without colors
+./install.sh --minimal       # Quick install with minimal modules
+./install.sh --defaults      # Install with core modules, no prompts
+./install.sh --uninstall     # Uninstall and restore previous statusline
+```
 
 ### Manual Brew
 
@@ -171,6 +186,24 @@ MODULE_ORDER="...,mycustom,..."
 ## Configuration
 
 Edit `barista.conf` or create `~/.claude/barista.conf` for user overrides.
+
+### Per-Directory Overrides
+
+Create `.barista.conf` in any project directory to customize the statusline for that project:
+
+```bash
+# ~/myproject/.barista.conf
+# Minimal statusline for this large monorepo
+DISPLAY_MODE="compact"
+MODULE_WEATHER="false"
+MODULE_ORDER="directory,context,git,model"
+```
+
+Configuration is loaded in order of precedence:
+1. Built-in defaults
+2. `~/.claude/barista/barista.conf`
+3. `~/.claude/barista.conf` (user overrides)
+4. `.barista.conf` (per-directory overrides)
 
 ### The Full Menu (650+ config options)
 

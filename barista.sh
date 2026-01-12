@@ -1,15 +1,17 @@
 #!/bin/bash
 
 # =============================================================================
-# Barista - Serving up fresh stats for Claude Code ☕
+# Barista - Serving up fresh stats for Claude Code
 # =============================================================================
 # A feature-rich, modular statusline for Claude Code CLI
 #
 # Configuration: Edit barista.conf to enable/disable modules
 # Modules: Add/remove files in the modules/ directory
+# Per-directory: Create .barista.conf in any project for overrides
 #
 # Author: Patrick D. Stuart (https://github.com/pstuart)
 # License: MIT
+# Requires: Bash 4.0+ (for associative arrays), jq
 # =============================================================================
 
 # Determine script directory (handles symlinks)
@@ -52,43 +54,102 @@ SEPARATOR=" | "
 PROGRESS_BAR_WIDTH=8
 PROGRESS_BAR_FILLED="█"
 PROGRESS_BAR_EMPTY="░"
+USE_ICONS="true"
+USE_STATUS_INDICATORS="true"
+STATUS_STYLE="emoji"
+DISPLAY_MODE="normal"
 
 # Advanced defaults
 CACHE_MAX_AGE=60
 DEBUG_MODE="false"
 
 # =============================================================================
-# LOAD CONFIGURATION
+# CONFIGURATION LOADING
 # =============================================================================
 
-if [ -f "$CONFIG_FILE" ]; then
-    . "$CONFIG_FILE"
-fi
+# Load main config file
+load_config() {
+    local config_path="$1"
+    if [ -f "$config_path" ]; then
+        # shellcheck source=/dev/null
+        . "$config_path"
+        return 0
+    fi
+    return 1
+}
 
-# Also check for user config in ~/.claude
+# Load configuration in order of precedence:
+# 1. Built-in defaults (above)
+# 2. Script directory config (barista.conf)
+# 3. User config (~/.claude/barista.conf)
+# 4. Per-directory config (.barista.conf in current_dir)
+
+load_config "$CONFIG_FILE"
+
 USER_CONFIG="$HOME/.claude/barista.conf"
-if [ -f "$USER_CONFIG" ]; then
-    . "$USER_CONFIG"
-fi
+load_config "$USER_CONFIG"
 
 # =============================================================================
 # LOAD MODULES
 # =============================================================================
 
-# Load utility functions first
+# Load utility functions first (required by all other modules)
 if [ -f "$MODULES_DIR/utils.sh" ]; then
+    # shellcheck source=/dev/null
     . "$MODULES_DIR/utils.sh"
+else
+    # Minimal fallback if utils.sh is missing
+    get_icon() { echo "$1"; }
+    get_status() { echo ""; }
+    progress_bar() { echo ""; }
+    format_number() { echo "$1"; }
+    safe_int() { echo "${1:-0}"; }
+    safe_percent() { echo "0"; }
+    json_get() { echo "${3:-}"; }
+    json_get_int() { echo "${3:-0}"; }
+    log_debug() { :; }
 fi
 
-# Load all module files
+# Load all other module files
 for module_file in "$MODULES_DIR"/*.sh; do
     if [ -f "$module_file" ]; then
         basename_file=$(basename "$module_file")
         if [ "$basename_file" != "utils.sh" ]; then
+            # shellcheck source=/dev/null
             . "$module_file"
         fi
     fi
 done
+
+# =============================================================================
+# MODULE REGISTRY
+# =============================================================================
+# Maps module names to their functions and config variables
+
+declare -A MODULE_FUNCTIONS=(
+    [directory]="module_directory"
+    [context]="module_context"
+    [git]="module_git"
+    [project]="module_project"
+    [model]="module_model"
+    [cost]="module_cost"
+    [rate-limits]="module_rate_limits"
+    [time]="module_time"
+    [battery]="module_battery"
+    [cpu]="module_cpu"
+    [memory]="module_memory"
+    [disk]="module_disk"
+    [network]="module_network"
+    [uptime]="module_uptime"
+    [load]="module_load"
+    [temperature]="module_temperature"
+    [brightness]="module_brightness"
+    [docker]="module_docker"
+    [node]="module_node"
+    [processes]="module_processes"
+    [weather]="module_weather"
+    [timezone]="module_timezone"
+)
 
 # =============================================================================
 # MODULE EXECUTION
@@ -99,127 +160,142 @@ run_module() {
     local current_dir="$2"
     local input_json="$3"
 
+    # Get function name from registry
+    local func_name="${MODULE_FUNCTIONS[$module_name]}"
+
+    if [ -z "$func_name" ]; then
+        log_debug "Unknown module: $module_name"
+        return
+    fi
+
+    # Check if function exists
+    if ! type "$func_name" >/dev/null 2>&1; then
+        log_debug "Module function not found: $func_name"
+        return
+    fi
+
+    # Call the appropriate module function with correct arguments
     case "$module_name" in
         directory)
-            type module_directory >/dev/null 2>&1 && module_directory "$current_dir"
+            "$func_name" "$current_dir"
             ;;
-        context)
-            type module_context >/dev/null 2>&1 && module_context "$input_json"
+        context|model|cost)
+            "$func_name" "$input_json"
             ;;
-        git)
-            type module_git >/dev/null 2>&1 && module_git "$current_dir"
+        git|project)
+            "$func_name" "$current_dir"
             ;;
-        project)
-            type module_project >/dev/null 2>&1 && module_project "$current_dir"
-            ;;
-        model)
-            type module_model >/dev/null 2>&1 && module_model "$input_json"
-            ;;
-        cost)
-            type module_cost >/dev/null 2>&1 && module_cost "$input_json"
-            ;;
-        rate-limits)
-            type module_rate_limits >/dev/null 2>&1 && module_rate_limits
-            ;;
-        time)
-            type module_time >/dev/null 2>&1 && module_time
-            ;;
-        battery)
-            type module_battery >/dev/null 2>&1 && module_battery
-            ;;
-        cpu)
-            type module_cpu >/dev/null 2>&1 && module_cpu
-            ;;
-        memory)
-            type module_memory >/dev/null 2>&1 && module_memory
-            ;;
-        disk)
-            type module_disk >/dev/null 2>&1 && module_disk
-            ;;
-        network)
-            type module_network >/dev/null 2>&1 && module_network
-            ;;
-        uptime)
-            type module_uptime >/dev/null 2>&1 && module_uptime
-            ;;
-        load)
-            type module_load >/dev/null 2>&1 && module_load
-            ;;
-        temperature)
-            type module_temperature >/dev/null 2>&1 && module_temperature
-            ;;
-        brightness)
-            type module_brightness >/dev/null 2>&1 && module_brightness
-            ;;
-        docker)
-            type module_docker >/dev/null 2>&1 && module_docker
-            ;;
-        node)
-            type module_node >/dev/null 2>&1 && module_node
-            ;;
-        processes)
-            type module_processes >/dev/null 2>&1 && module_processes
-            ;;
-        weather)
-            type module_weather >/dev/null 2>&1 && module_weather
-            ;;
-        timezone)
-            type module_timezone >/dev/null 2>&1 && module_timezone
+        *)
+            # Modules that take no arguments or handle their own
+            "$func_name"
             ;;
     esac
+}
+
+# Check if a module is enabled
+is_module_enabled() {
+    local module_name="$1"
+
+    # Convert module name to config variable name
+    # e.g., "rate-limits" -> "MODULE_RATE_LIMITS"
+    local var_name="MODULE_$(echo "$module_name" | tr '[:lower:]-' '[:upper:]_')"
+
+    # Get value using indirect reference
+    local enabled
+    eval "enabled=\${$var_name:-false}"
+
+    [ "$enabled" = "true" ]
+}
+
+# =============================================================================
+# CONFIGURATION VALIDATION
+# =============================================================================
+
+validate_module_order() {
+    local order="$1"
+
+    if [ -z "$order" ]; then
+        return 0
+    fi
+
+    local old_ifs="$IFS"
+    IFS=','
+    for module in $order; do
+        module=$(echo "$module" | tr -d ' ')
+        if [ -z "${MODULE_FUNCTIONS[$module]}" ]; then
+            log_debug "Warning: Unknown module in MODULE_ORDER: $module"
+        fi
+    done
+    IFS="$old_ifs"
 }
 
 # =============================================================================
 # MAIN EXECUTION
 # =============================================================================
 
-# Read input JSON from Claude Code
-input=$(cat)
+main() {
+    # Read input JSON from Claude Code
+    local input
+    input=$(cat)
 
-# Extract common data
-current_dir=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // "."')
+    # Extract current directory
+    local current_dir
+    current_dir=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // "."' 2>/dev/null)
 
-# Default module order if not specified
-DEFAULT_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
-
-# Use custom order if specified, otherwise use default
-if [ -n "$MODULE_ORDER" ]; then
-    module_order="$MODULE_ORDER"
-else
-    module_order="$DEFAULT_ORDER"
-fi
-
-# Build status line sections
-sections=""
-
-# Process modules in specified order (bash 3.2 compatible)
-old_ifs="$IFS"
-IFS=','
-for module in $module_order; do
-    # Trim whitespace
-    module=$(echo "$module" | tr -d ' ')
-
-    # Convert module name to variable name (e.g., rate-limits -> MODULE_RATE_LIMITS)
-    var_name="MODULE_$(echo "$module" | tr '[:lower:]-' '[:upper:]_')"
-
-    # Check if module is enabled
-    eval "enabled=\${$var_name:-false}"
-
-    if [ "$enabled" = "true" ]; then
-        output=$(run_module "$module" "$current_dir" "$input")
-        if [ -n "$output" ]; then
-            if [ -n "$sections" ]; then
-                sections="${sections}${SEPARATOR}${output}"
-            else
-                sections="$output"
-            fi
+    # Load per-directory config if it exists
+    # This allows project-specific statusline customization
+    if [ -n "$current_dir" ] && [ -d "$current_dir" ]; then
+        local dir_config="$current_dir/.barista.conf"
+        if [ -f "$dir_config" ]; then
+            log_debug "Loading per-directory config: $dir_config"
+            load_config "$dir_config"
         fi
     fi
-done
-IFS="$old_ifs"
 
-# =============================================================================
-# OUTPUT
-# =============================================================================
+    # Default module order if not specified
+    local DEFAULT_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
 
-echo "$sections"
+    # Use custom order if specified, otherwise use default
+    local module_order="${MODULE_ORDER:-$DEFAULT_ORDER}"
+
+    # Validate module order
+    validate_module_order "$module_order"
+
+    # Build status line sections
+    local sections=""
+
+    # Process modules in specified order
+    local old_ifs="$IFS"
+    IFS=','
+    for module in $module_order; do
+        # Trim whitespace
+        module=$(echo "$module" | tr -d ' ')
+
+        # Skip empty entries
+        [ -z "$module" ] && continue
+
+        # Check if module is enabled
+        if is_module_enabled "$module"; then
+            local output
+            output=$(run_module "$module" "$current_dir" "$input")
+
+            if [ -n "$output" ]; then
+                if [ -n "$sections" ]; then
+                    sections="${sections}${SEPARATOR}${output}"
+                else
+                    sections="$output"
+                fi
+            fi
+        fi
+    done
+    IFS="$old_ifs"
+
+    # =============================================================================
+    # OUTPUT
+    # =============================================================================
+
+    echo "$sections"
+}
+
+# Run main function
+main
