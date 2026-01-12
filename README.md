@@ -9,6 +9,10 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
+<p align="center">
+  <img src="demo.gif" alt="Barista Demo" width="800">
+</p>
+
 ## What's New in v1.1.0 🆕
 
 - **Auto-Update Checking** - Barista now checks GitHub for updates and can self-update
