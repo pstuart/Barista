@@ -259,13 +259,80 @@ EOF
 }
 
 # =============================================================================
-# MULTISELECT MODULE SELECTION
+# INTERACTIVE CHECKBOX SELECTOR
 # =============================================================================
+# Uses arrow keys to navigate, space to toggle, enter to confirm
 
-# Display multiselect menu for a category of modules
-multiselect_category() {
-    local category_name="$1"
-    local category_desc="$2"
+# Draw the checkbox menu
+draw_checkbox_menu() {
+    local title="$1"
+    local description="$2"
+    local current_idx="$3"
+    shift 3
+    local items=("$@")
+
+    local count=${#items[@]}
+
+    # Move cursor up to redraw (count + header lines)
+    # Only do this if not first draw
+    if [ "$MENU_DRAWN" = "true" ]; then
+        printf "\033[%dA" $((count + 5))
+    fi
+
+    # Clear lines and draw header
+    printf "\033[K"
+    printf "${BOLD}${MAGENTA}=== %s ===${NC}\n" "$title"
+    if [ -n "$description" ]; then
+        printf "\033[K"
+        printf "${DIM}%s${NC}\n" "$description"
+    fi
+    printf "\033[K\n"
+
+    # Draw each item
+    local i=0
+    for item in "${items[@]}"; do
+        printf "\033[K"  # Clear line
+
+        local name=$(echo "$item" | cut -d'|' -f1)
+        local desc=$(echo "$item" | cut -d'|' -f2)
+
+        # Cursor indicator
+        if [ "$i" -eq "$current_idx" ]; then
+            printf "  ${CYAN}>${NC} "
+        else
+            printf "    "
+        fi
+
+        # Checkbox
+        if is_module_selected "$name"; then
+            printf "${GREEN}[x]${NC} "
+        else
+            printf "${DIM}[ ]${NC} "
+        fi
+
+        # Description (highlighted if current)
+        if [ "$i" -eq "$current_idx" ]; then
+            printf "${BOLD}%s${NC}\n" "$desc"
+        else
+            printf "%s\n" "$desc"
+        fi
+
+        i=$((i + 1))
+    done
+
+    # Instructions
+    printf "\033[K\n"
+    printf "\033[K"
+    printf "${DIM}  ↑/↓ Navigate  ␣ Toggle  a All  n None  ⏎ Done${NC}\n"
+
+    MENU_DRAWN="true"
+}
+
+# Interactive checkbox menu
+# Returns selected items via SELECTED_MODULES array
+interactive_checkbox() {
+    local title="$1"
+    local description="$2"
     shift 2
     local modules=("$@")
 
@@ -274,92 +341,79 @@ multiselect_category() {
         return
     fi
 
-    echo ""
-    echo -e "${BOLD}${MAGENTA}=== $category_name ===${NC}"
-    [ -n "$category_desc" ] && echo -e "${DIM}$category_desc${NC}"
-    echo ""
-
-    # Build numbered list
-    local i=1
+    # Build items array with name|description format
+    local items=()
     local module_names=()
     for mod_def in "${modules[@]}"; do
         local name=$(get_module_name "$mod_def")
         local desc=$(get_module_description "$name" "both")
-        local selected=""
-
-        if is_module_selected "$name"; then
-            selected="${GREEN}[x]${NC}"
-        else
-            selected="${DIM}[ ]${NC}"
-        fi
-
-        printf "  ${CYAN}%2d)${NC} %s %s\n" "$i" "$selected" "$desc"
+        items+=("${name}|${desc}")
         module_names+=("$name")
-        i=$((i + 1))
     done
 
+    local current_idx=0
+    MENU_DRAWN="false"
+
+    # Hide cursor
+    printf "\033[?25l"
+
+    # Initial draw
     echo ""
-    echo -e "  ${DIM}Enter numbers to toggle (e.g., 1,3,5 or 1-3,7 or 'all' or 'none')${NC}"
-    echo -e "  ${DIM}Press Enter to continue to next category${NC}"
-    echo ""
+    draw_checkbox_menu "$title" "$description" "$current_idx" "${items[@]}"
 
-    read -p "  Toggle modules: " input
+    # Read input
+    while true; do
+        # Read single character
+        IFS= read -rsn1 key
 
-    if [ -z "$input" ]; then
-        return
-    fi
-
-    # Handle special keywords
-    case "$input" in
-        all|ALL)
+        # Handle escape sequences (arrow keys)
+        if [ "$key" = $'\x1b' ]; then
+            read -rsn2 -t 0.1 key
+            case "$key" in
+                '[A') # Up arrow
+                    if [ "$current_idx" -gt 0 ]; then
+                        current_idx=$((current_idx - 1))
+                    else
+                        current_idx=$((count - 1))  # Wrap to bottom
+                    fi
+                    ;;
+                '[B') # Down arrow
+                    if [ "$current_idx" -lt $((count - 1)) ]; then
+                        current_idx=$((current_idx + 1))
+                    else
+                        current_idx=0  # Wrap to top
+                    fi
+                    ;;
+            esac
+        elif [ "$key" = " " ]; then
+            # Space - toggle current item
+            local name="${module_names[$current_idx]}"
+            toggle_module "$name"
+        elif [ "$key" = "a" ] || [ "$key" = "A" ]; then
+            # Select all
             for name in "${module_names[@]}"; do
                 select_module "$name"
             done
-            echo -e "  ${GREEN}Selected all $category_name${NC}"
-            return
-            ;;
-        none|NONE)
+        elif [ "$key" = "n" ] || [ "$key" = "N" ]; then
+            # Deselect all
             for name in "${module_names[@]}"; do
                 deselect_module "$name"
             done
-            echo -e "  ${DIM}Deselected all $category_name${NC}"
-            return
-            ;;
-    esac
-
-    # Parse ranges and individual numbers
-    # Replace commas with spaces, then handle ranges
-    local parsed=""
-    input=$(echo "$input" | tr ',' ' ')
-
-    for item in $input; do
-        if echo "$item" | grep -q '-'; then
-            # Handle range like 1-3
-            local start=$(echo "$item" | cut -d'-' -f1)
-            local end=$(echo "$item" | cut -d'-' -f2)
-            if [ "$start" -le "$end" ] 2>/dev/null; then
-                for ((n=start; n<=end; n++)); do
-                    parsed="$parsed $n"
-                done
-            fi
-        else
-            parsed="$parsed $item"
+        elif [ "$key" = "" ]; then
+            # Enter - done with this category
+            break
+        elif [ "$key" = "q" ] || [ "$key" = "Q" ]; then
+            # Quit selection
+            break
         fi
+
+        # Redraw
+        draw_checkbox_menu "$title" "$description" "$current_idx" "${items[@]}"
     done
 
-    # Toggle selected modules
-    for num in $parsed; do
-        num=$(echo "$num" | tr -d ' ')
-        if [ "$num" -ge 1 ] 2>/dev/null && [ "$num" -le "$count" ] 2>/dev/null; then
-            local idx=$((num - 1))
-            local name="${module_names[$idx]}"
-            if toggle_module "$name"; then
-                echo -e "  ${GREEN}+ $name${NC}"
-            else
-                echo -e "  ${DIM}- $name${NC}"
-            fi
-        fi
-    done
+    # Show cursor
+    printf "\033[?25h"
+    echo ""
 }
 
 # Main interactive module selection
@@ -368,7 +422,7 @@ interactive_module_selection() {
     print_header "$pkg_icon Module Selection"
     echo ""
     echo "Select which modules to include in your statusline."
-    echo "Use the multiselect interface to toggle modules on/off."
+    echo "Use arrow keys to navigate, space to toggle, Enter when done."
     echo ""
 
     # Initialize with default selections
@@ -381,20 +435,19 @@ interactive_module_selection() {
     done
 
     # Show current selection summary
-    echo -e "${DIM}Default selection: ${#SELECTED_MODULES[@]} modules${NC}"
-    echo ""
+    printf "${DIM}Default selection: %d modules${NC}\n" "${#SELECTED_MODULES[@]}"
 
     # Core modules
-    multiselect_category "Core Modules (Claude Code specific)" "" "${CORE_MODULES[@]}"
+    interactive_checkbox "Core Modules" "Claude Code specific modules" "${CORE_MODULES[@]}"
 
     # System modules
-    multiselect_category "System Monitoring" "These show system stats (CPU, memory, etc.)" "${SYSTEM_MODULES[@]}"
+    interactive_checkbox "System Monitoring" "CPU, memory, disk, etc." "${SYSTEM_MODULES[@]}"
 
     # Dev tools
-    multiselect_category "Development Tools" "Docker, Node.js, and other dev tools" "${DEV_MODULES[@]}"
+    interactive_checkbox "Development Tools" "Docker, Node.js, etc." "${DEV_MODULES[@]}"
 
     # Extra modules
-    multiselect_category "Extra Modules" "Weather, multiple timezones, etc." "${EXTRA_MODULES[@]}"
+    interactive_checkbox "Extra Modules" "Weather, timezones, etc." "${EXTRA_MODULES[@]}"
 
     # Final summary
     echo ""
@@ -427,7 +480,7 @@ interactive_module_selection() {
                 dev) cat_label="Dev Tools" ;;
                 extra) cat_label="Extra" ;;
             esac
-            echo -e "  ${CYAN}$cat_label:${NC} ${cat_modules[*]}"
+            printf "  ${CYAN}%s:${NC} %s\n" "$cat_label" "${cat_modules[*]}"
         fi
     done
     echo ""
@@ -531,28 +584,109 @@ interactive_module_ordering() {
 # =============================================================================
 # DISPLAY PREFERENCES
 # =============================================================================
+
+# Interactive single-choice selector
+# Usage: interactive_choice "title" "option1|desc1" "option2|desc2" ...
+# Returns: selected index (0-based) in CHOICE_RESULT
+interactive_choice() {
+    local title="$1"
+    shift
+    local options=("$@")
+
+    local count=${#options[@]}
+    local current_idx=0
+    local drawn="false"
+
+    # Hide cursor
+    printf "\033[?25l"
+
+    echo ""
+
+    while true; do
+        # Move cursor up to redraw
+        if [ "$drawn" = "true" ]; then
+            printf "\033[%dA" $((count + 3))
+        fi
+
+        # Draw title
+        printf "\033[K"
+        printf "${BOLD}%s${NC}\n" "$title"
+        printf "\033[K\n"
+
+        # Draw options
+        local i=0
+        for opt in "${options[@]}"; do
+            printf "\033[K"
+            local label=$(echo "$opt" | cut -d'|' -f1)
+            local desc=$(echo "$opt" | cut -d'|' -f2)
+
+            if [ "$i" -eq "$current_idx" ]; then
+                printf "  ${CYAN}>${NC} ${GREEN}◉${NC} ${BOLD}%s${NC}" "$label"
+            else
+                printf "    ${DIM}○${NC} %s" "$label"
+            fi
+
+            if [ -n "$desc" ]; then
+                printf " ${DIM}- %s${NC}" "$desc"
+            fi
+            printf "\n"
+
+            i=$((i + 1))
+        done
+
+        printf "\033[K"
+        printf "${DIM}  ↑/↓ Navigate  ⏎ Select${NC}\n"
+
+        drawn="true"
+
+        # Read input
+        IFS= read -rsn1 key
+
+        if [ "$key" = $'\x1b' ]; then
+            read -rsn2 -t 0.1 key
+            case "$key" in
+                '[A') # Up
+                    if [ "$current_idx" -gt 0 ]; then
+                        current_idx=$((current_idx - 1))
+                    else
+                        current_idx=$((count - 1))
+                    fi
+                    ;;
+                '[B') # Down
+                    if [ "$current_idx" -lt $((count - 1)) ]; then
+                        current_idx=$((current_idx + 1))
+                    else
+                        current_idx=0
+                    fi
+                    ;;
+            esac
+        elif [ "$key" = "" ]; then
+            # Enter - select
+            break
+        fi
+    done
+
+    # Show cursor
+    printf "\033[?25h"
+    echo ""
+
+    CHOICE_RESULT=$current_idx
+}
+
 interactive_display_preferences() {
     echo ""
     local style_icon=$(emoji "🎨" "[STY]")
     print_header "$style_icon Display Preferences"
-    echo ""
 
-    # Emoji preference
-    echo -e "${BOLD}Icon Style:${NC}"
-    echo ""
-    echo "  1) $(emoji '📁' '[D]') Emoji icons (default)"
-    echo "     Example: 📁 myproject | 📊 ████░░ 75% | 🌿 main"
-    echo ""
-    echo "  2) [D] ASCII/Text mode (no emojis)"
-    echo "     Example: DIR: myproject | CTX: #### 75% | GIT: main"
-    echo ""
+    # Icon style
+    interactive_choice "Icon Style:" \
+        "Emoji icons|📁 myproject | 📊 ████░░ 75% | 🌿 main" \
+        "ASCII/Text|DIR: myproject | CTX: #### 75% | GIT: main"
 
-    read -p "  Choose style [1-2, default=1]: " icon_choice
-
-    case "$icon_choice" in
-        2)
+    case "$CHOICE_RESULT" in
+        1)
             USE_EMOJI="false"
-            print_success "Using ASCII/Text mode (no emojis)"
+            print_success "Using ASCII/Text mode"
             ;;
         *)
             USE_EMOJI="true"
@@ -560,72 +694,57 @@ interactive_display_preferences() {
             ;;
     esac
 
-    echo ""
-
     # Status indicator style
-    echo -e "${BOLD}Status Indicators:${NC}"
-    echo ""
     if [ "$USE_EMOJI" = "true" ]; then
-        echo "  1) 🟢🟡🔴 Emoji circles (default)"
-        echo "  2) ●●● Colored dots"
-        echo "  3) [OK][WARN][CRIT] ASCII text"
-    else
-        echo "  1) [OK][WARN][CRIT] ASCII text (default for text mode)"
-        echo "  2) ●●● Dots"
-    fi
-    echo ""
+        interactive_choice "Status Indicators:" \
+            "🟢🟡🔴 Emoji circles" \
+            "●●● Colored dots" \
+            "[OK][WARN][CRIT] ASCII text"
 
-    read -p "  Choose indicator style [1-${USE_EMOJI:+3}${USE_EMOJI:-2}, default=1]: " status_choice
-
-    if [ "$USE_EMOJI" = "true" ]; then
-        case "$status_choice" in
-            2) STATUS_STYLE="dots" ;;
-            3) STATUS_STYLE="ascii" ;;
+        case "$CHOICE_RESULT" in
+            1) STATUS_STYLE="dots" ;;
+            2) STATUS_STYLE="ascii" ;;
             *) STATUS_STYLE="emoji" ;;
         esac
     else
-        case "$status_choice" in
-            2) STATUS_STYLE="dots" ;;
+        interactive_choice "Status Indicators:" \
+            "[OK][WARN][CRIT] ASCII text" \
+            "●●● Dots"
+
+        case "$CHOICE_RESULT" in
+            1) STATUS_STYLE="dots" ;;
             *) STATUS_STYLE="ascii" ;;
         esac
     fi
-
-    echo ""
+    print_success "Status style: $STATUS_STYLE"
 
     # Progress bar style
-    echo -e "${BOLD}Progress Bar Style:${NC}"
-    echo ""
     if [ "$USE_EMOJI" = "true" ]; then
-        echo "  1) ████░░░░ Block style (default)"
-        echo "  2) ▓▓▓▓░░░░ Shaded blocks"
-        echo "  3) ●●●●○○○○ Circles"
-        echo "  4) ####---- ASCII"
-    else
-        echo "  1) ####---- ASCII (default for text mode)"
-        echo "  2) ====---- Equals"
-        echo "  3) ****.... Stars"
-    fi
-    echo ""
+        interactive_choice "Progress Bar Style:" \
+            "████░░░░ Blocks" \
+            "▓▓▓▓░░░░ Shaded" \
+            "●●●●○○○○ Circles" \
+            "####---- ASCII"
 
-    if [ "$USE_EMOJI" = "true" ]; then
-        read -p "  Choose progress bar style [1-4, default=1]: " bar_choice
-        case "$bar_choice" in
-            2) PROGRESS_FILLED="▓"; PROGRESS_EMPTY="░" ;;
-            3) PROGRESS_FILLED="●"; PROGRESS_EMPTY="○" ;;
-            4) PROGRESS_FILLED="#"; PROGRESS_EMPTY="-" ;;
+        case "$CHOICE_RESULT" in
+            1) PROGRESS_FILLED="▓"; PROGRESS_EMPTY="░" ;;
+            2) PROGRESS_FILLED="●"; PROGRESS_EMPTY="○" ;;
+            3) PROGRESS_FILLED="#"; PROGRESS_EMPTY="-" ;;
             *) PROGRESS_FILLED="█"; PROGRESS_EMPTY="░" ;;
         esac
     else
-        read -p "  Choose progress bar style [1-3, default=1]: " bar_choice
-        case "$bar_choice" in
-            2) PROGRESS_FILLED="="; PROGRESS_EMPTY="-" ;;
-            3) PROGRESS_FILLED="*"; PROGRESS_EMPTY="." ;;
+        interactive_choice "Progress Bar Style:" \
+            "####---- Hash" \
+            "====---- Equals" \
+            "****.... Stars"
+
+        case "$CHOICE_RESULT" in
+            1) PROGRESS_FILLED="="; PROGRESS_EMPTY="-" ;;
+            2) PROGRESS_FILLED="*"; PROGRESS_EMPTY="." ;;
             *) PROGRESS_FILLED="#"; PROGRESS_EMPTY="-" ;;
         esac
     fi
-
-    echo ""
-    print_success "Display preferences saved"
+    print_success "Progress bar: ${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_EMPTY}${PROGRESS_EMPTY}"
 }
 
 # =============================================================================
