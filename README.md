@@ -79,8 +79,8 @@ brew install jq
 
 ```bash
 # Clone the repo
-git clone https://github.com/pstuart/pstuart.git
-cd pstuart/barista
+git clone https://github.com/pstuart/Barista.git
+cd Barista
 
 # Run the installer
 ./install.sh
