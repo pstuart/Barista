@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# Editor directories
+.idea/
+.vscode/
+*.sublime-*
+
+# Local config overrides (keep barista.conf as the default)
+barista.local.conf
