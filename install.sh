@@ -367,17 +367,17 @@ interactive_checkbox() {
         IFS= read -rsn1 key
 
         # Handle escape sequences (arrow keys)
-        if [ "$key" = $'\x1b' ]; then
-            read -rsn2 -t 0.1 key
-            case "$key" in
-                '[A') # Up arrow
+        if [[ "$key" == $'\e' ]]; then
+            read -rsn2 escape_seq
+            case "$escape_seq" in
+                '[A'|'OA') # Up arrow
                     if [ "$current_idx" -gt 0 ]; then
                         current_idx=$((current_idx - 1))
                     else
                         current_idx=$((count - 1))  # Wrap to bottom
                     fi
                     ;;
-                '[B') # Down arrow
+                '[B'|'OB') # Down arrow
                     if [ "$current_idx" -lt $((count - 1)) ]; then
                         current_idx=$((current_idx + 1))
                     else
@@ -385,7 +385,7 @@ interactive_checkbox() {
                     fi
                     ;;
             esac
-        elif [ "$key" = " " ]; then
+        elif [[ "$key" == " " ]]; then
             # Space - toggle current item
             local name="${module_names[$current_idx]}"
             toggle_module "$name"
@@ -642,17 +642,17 @@ interactive_choice() {
         # Read input
         IFS= read -rsn1 key
 
-        if [ "$key" = $'\x1b' ]; then
-            read -rsn2 -t 0.1 key
-            case "$key" in
-                '[A') # Up
+        if [[ "$key" == $'\e' ]]; then
+            read -rsn2 escape_seq
+            case "$escape_seq" in
+                '[A'|'OA') # Up
                     if [ "$current_idx" -gt 0 ]; then
                         current_idx=$((current_idx - 1))
                     else
                         current_idx=$((count - 1))
                     fi
                     ;;
-                '[B') # Down
+                '[B'|'OB') # Down
                     if [ "$current_idx" -lt $((count - 1)) ]; then
                         current_idx=$((current_idx + 1))
                     else
@@ -660,7 +660,7 @@ interactive_choice() {
                     fi
                     ;;
             esac
-        elif [ "$key" = "" ]; then
+        elif [[ "$key" == "" ]]; then
             # Enter - select
             break
         fi
