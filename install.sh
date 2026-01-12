@@ -26,6 +26,11 @@ INSTALL_MODE="interactive"
 STATUS_STYLE="emoji"
 PROGRESS_FILLED="█"
 PROGRESS_EMPTY="░"
+SEPARATOR_STYLE="pipe"
+SEPARATOR_CHAR=" | "
+COLOR_THEME="default"
+DISPLAY_MODE="normal"
+SKIP_UPDATE_CHECK="false"
 
 # =============================================================================
 # COLOR DEFINITIONS
@@ -63,6 +68,166 @@ BARISTA_DIR="$CLAUDE_DIR/barista"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 BACKUP_DIR="$CLAUDE_DIR/.barista-backup"
 BACKUP_MANIFEST="$BACKUP_DIR/manifest.json"
+
+# =============================================================================
+# VERSION MANAGEMENT
+# =============================================================================
+GITHUB_REPO="pstuart/Barista"
+GITHUB_RAW_URL="https://raw.githubusercontent.com/$GITHUB_REPO/main"
+LOCAL_VERSION=""
+REMOTE_VERSION=""
+UPDATE_AVAILABLE="false"
+
+# Read local version
+get_local_version() {
+    if [ -f "$SCRIPT_DIR/VERSION" ]; then
+        LOCAL_VERSION=$(cat "$SCRIPT_DIR/VERSION" | tr -d '[:space:]')
+    elif [ -f "$BARISTA_DIR/VERSION" ]; then
+        LOCAL_VERSION=$(cat "$BARISTA_DIR/VERSION" | tr -d '[:space:]')
+    else
+        LOCAL_VERSION="0.0.0"
+    fi
+    echo "$LOCAL_VERSION"
+}
+
+# Check GitHub for latest version
+check_remote_version() {
+    if ! command -v curl &> /dev/null; then
+        return 1
+    fi
+
+    # Fetch remote VERSION file (timeout 5 seconds)
+    REMOTE_VERSION=$(curl -s --connect-timeout 5 "$GITHUB_RAW_URL/VERSION" 2>/dev/null | tr -d '[:space:]')
+
+    if [ -z "$REMOTE_VERSION" ] || [[ ! "$REMOTE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        return 1
+    fi
+
+    echo "$REMOTE_VERSION"
+}
+
+# Compare semantic versions (returns 0 if v1 < v2)
+version_lt() {
+    local v1="$1"
+    local v2="$2"
+
+    # Split versions into arrays
+    local IFS='.'
+    read -ra V1 <<< "$v1"
+    read -ra V2 <<< "$v2"
+
+    # Compare each component
+    for i in 0 1 2; do
+        local n1="${V1[$i]:-0}"
+        local n2="${V2[$i]:-0}"
+        if [ "$n1" -lt "$n2" ] 2>/dev/null; then
+            return 0
+        elif [ "$n1" -gt "$n2" ] 2>/dev/null; then
+            return 1
+        fi
+    done
+    return 1  # Equal versions
+}
+
+# Check for updates
+check_for_updates() {
+    local local_ver=$(get_local_version)
+    local remote_ver=$(check_remote_version)
+
+    if [ -z "$remote_ver" ]; then
+        return 1  # Could not check
+    fi
+
+    if version_lt "$local_ver" "$remote_ver"; then
+        UPDATE_AVAILABLE="true"
+        REMOTE_VERSION="$remote_ver"
+        return 0
+    fi
+
+    return 1
+}
+
+# Prompt user to update
+prompt_update() {
+    local local_ver=$(get_local_version)
+
+    echo ""
+    print_header "$(emoji '🆕' '[NEW]') Update Available!"
+    echo ""
+    echo -e "  Current version: ${YELLOW}$local_ver${NC}"
+    echo -e "  Latest version:  ${GREEN}$REMOTE_VERSION${NC}"
+    echo ""
+    echo "  View changes: https://github.com/$GITHUB_REPO/releases"
+    echo ""
+
+    read -p "Would you like to update now? [Y/n]: " update_choice
+
+    if [ "$update_choice" != "n" ] && [ "$update_choice" != "N" ]; then
+        do_update
+        return $?
+    fi
+
+    return 1
+}
+
+# Perform the update
+do_update() {
+    print_info "Updating Barista..."
+
+    # Check if we're in a git repo
+    if [ -d "$SCRIPT_DIR/.git" ]; then
+        print_info "Pulling latest changes from GitHub..."
+        cd "$SCRIPT_DIR"
+
+        # Stash any local changes
+        git stash -q 2>/dev/null
+
+        # Pull latest
+        if git pull origin main 2>/dev/null; then
+            print_success "Updated to version $REMOTE_VERSION"
+            echo ""
+            print_info "Restarting installer with new version..."
+            echo ""
+
+            # Re-execute the installer
+            exec "$SCRIPT_DIR/install.sh" "$@"
+        else
+            print_error "Git pull failed. Try manually: cd $SCRIPT_DIR && git pull"
+            return 1
+        fi
+    else
+        # Not a git repo - download via curl
+        print_info "Downloading latest version..."
+
+        local tmp_dir=$(mktemp -d)
+        local zip_url="https://github.com/$GITHUB_REPO/archive/refs/heads/main.zip"
+
+        if curl -sL "$zip_url" -o "$tmp_dir/barista.zip" 2>/dev/null; then
+            cd "$tmp_dir"
+            unzip -q barista.zip 2>/dev/null
+
+            if [ -d "Barista-main" ]; then
+                # Backup current and replace
+                cp -r "$SCRIPT_DIR" "$SCRIPT_DIR.backup.$$"
+                cp -r Barista-main/* "$SCRIPT_DIR/"
+                rm -rf "$SCRIPT_DIR.backup.$$"
+
+                print_success "Updated to version $REMOTE_VERSION"
+                echo ""
+                print_info "Restarting installer with new version..."
+                echo ""
+
+                # Cleanup and re-execute
+                rm -rf "$tmp_dir"
+                exec "$SCRIPT_DIR/install.sh" "$@"
+            fi
+        fi
+
+        rm -rf "$tmp_dir"
+        print_error "Update failed. Please update manually from GitHub."
+        return 1
+    fi
+}
 
 # =============================================================================
 # MODULE DEFINITIONS
@@ -745,6 +910,155 @@ interactive_display_preferences() {
         esac
     fi
     print_success "Progress bar: ${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_EMPTY}${PROGRESS_EMPTY}"
+
+    # Separator style
+    if [ "$USE_EMOJI" = "true" ]; then
+        interactive_choice "Separator Style:" \
+            " | Pipe (default)" \
+            " ║ Double pipe" \
+            " › Arrow" \
+            " • Bullet"
+
+        case "$CHOICE_RESULT" in
+            1) SEPARATOR_STYLE="double"; SEPARATOR_CHAR=" ║ " ;;
+            2) SEPARATOR_STYLE="arrow"; SEPARATOR_CHAR=" › " ;;
+            3) SEPARATOR_STYLE="bullet"; SEPARATOR_CHAR=" • " ;;
+            *) SEPARATOR_STYLE="pipe"; SEPARATOR_CHAR=" | " ;;
+        esac
+    else
+        interactive_choice "Separator Style:" \
+            " | Pipe (default)" \
+            " : Colon" \
+            " - Dash" \
+            " / Slash"
+
+        case "$CHOICE_RESULT" in
+            1) SEPARATOR_STYLE="colon"; SEPARATOR_CHAR=" : " ;;
+            2) SEPARATOR_STYLE="dash"; SEPARATOR_CHAR=" - " ;;
+            3) SEPARATOR_STYLE="slash"; SEPARATOR_CHAR=" / " ;;
+            *) SEPARATOR_STYLE="pipe"; SEPARATOR_CHAR=" | " ;;
+        esac
+    fi
+    print_success "Separator: '$SEPARATOR_CHAR'"
+
+    # Color theme
+    interactive_choice "Color Theme:" \
+        "Default|Standard colors" \
+        "Minimal|Subdued, less color" \
+        "Vibrant|Bold, high contrast" \
+        "Monochrome|Single color accent"
+
+    case "$CHOICE_RESULT" in
+        1) COLOR_THEME="minimal" ;;
+        2) COLOR_THEME="vibrant" ;;
+        3) COLOR_THEME="monochrome" ;;
+        *) COLOR_THEME="default" ;;
+    esac
+    print_success "Color theme: $COLOR_THEME"
+
+    # Display mode
+    interactive_choice "Display Density:" \
+        "Normal|Full information" \
+        "Compact|Abbreviated output" \
+        "Verbose|Extra details"
+
+    case "$CHOICE_RESULT" in
+        1) DISPLAY_MODE="compact" ;;
+        2) DISPLAY_MODE="verbose" ;;
+        *) DISPLAY_MODE="normal" ;;
+    esac
+    print_success "Display mode: $DISPLAY_MODE"
+
+    # Show preview
+    echo ""
+    print_header "$(emoji '👁️ ' '[PRV]') Preview"
+    show_statusline_preview
+}
+
+# Generate a live preview of the statusline
+show_statusline_preview() {
+    local sep="$SEPARATOR_CHAR"
+    local preview=""
+
+    # Build preview based on selected modules
+    for module in "${SELECTED_MODULES[@]}"; do
+        local part=""
+        case "$module" in
+            directory)
+                if [ "$USE_EMOJI" = "true" ]; then
+                    part="📁 myproject"
+                else
+                    part="DIR: myproject"
+                fi
+                ;;
+            context)
+                local bar="${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}"
+                local status=""
+                case "$STATUS_STYLE" in
+                    emoji) status="🟢" ;;
+                    dots) status="●" ;;
+                    ascii) status="[OK]" ;;
+                esac
+                if [ "$USE_EMOJI" = "true" ]; then
+                    part="📊 $bar 50%$status"
+                else
+                    part="CTX: $bar 50%$status"
+                fi
+                ;;
+            git)
+                if [ "$USE_EMOJI" = "true" ]; then
+                    part="🌿 main"
+                else
+                    part="GIT: main"
+                fi
+                ;;
+            model)
+                if [ "$USE_EMOJI" = "true" ]; then
+                    part="🤖 Opus"
+                else
+                    part="MODEL: Opus"
+                fi
+                ;;
+            cost)
+                if [ "$USE_EMOJI" = "true" ]; then
+                    part="💰 \$1.25"
+                else
+                    part="COST: \$1.25"
+                fi
+                ;;
+            time)
+                if [ "$USE_EMOJI" = "true" ]; then
+                    part="🕐 12:30"
+                else
+                    part="TIME: 12:30"
+                fi
+                ;;
+            battery)
+                if [ "$USE_EMOJI" = "true" ]; then
+                    part="🔋 85%"
+                else
+                    part="BAT: 85%"
+                fi
+                ;;
+        esac
+
+        if [ -n "$part" ]; then
+            if [ -n "$preview" ]; then
+                preview="${preview}${sep}${part}"
+            else
+                preview="$part"
+            fi
+        fi
+    done
+
+    # Limit preview length
+    if [ ${#preview} -gt 100 ]; then
+        preview="${preview:0:97}..."
+    fi
+
+    echo ""
+    echo -e "  ${DIM}$preview${NC}"
+    echo ""
 }
 
 # =============================================================================
@@ -772,12 +1086,21 @@ HEADER
         echo 'USE_ICONS="true"' >> "$config_file"
     fi
 
+    # Display mode
+    echo "DISPLAY_MODE=\"${DISPLAY_MODE:-normal}\"" >> "$config_file"
+
     # Status style
     echo "STATUS_STYLE=\"${STATUS_STYLE:-emoji}\"" >> "$config_file"
 
     # Progress bar characters
     echo "PROGRESS_BAR_FILLED=\"${PROGRESS_FILLED:-█}\"" >> "$config_file"
     echo "PROGRESS_BAR_EMPTY=\"${PROGRESS_EMPTY:-░}\"" >> "$config_file"
+
+    # Separator
+    echo "SEPARATOR=\"${SEPARATOR_CHAR:- | }\"" >> "$config_file"
+
+    # Color theme
+    echo "COLOR_THEME=\"${COLOR_THEME:-default}\"" >> "$config_file"
     echo "" >> "$config_file"
 
     # Write module enable/disable settings
@@ -814,7 +1137,6 @@ HEADER
 # Display Settings
 # =============================================================================
 
-SEPARATOR=" | "
 PROGRESS_BAR_WIDTH=8
 
 # =============================================================================
@@ -1367,20 +1689,34 @@ EOF
 # =============================================================================
 show_help() {
     show_banner
+    local ver=$(get_local_version)
+    echo "Barista v$ver"
+    echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
-    echo "Options:"
-    echo "  (none)       Interactive install with multiselect module picker"
-    echo "  --defaults   Install with core modules enabled (default order)"
-    echo "  --minimal    Quick install with minimal modules (dir, context, git, model)"
-    echo "  --force      Same as --defaults, no confirmation prompts"
-    echo "  --no-emoji   Disable emojis in installer and generated config"
-    echo "  --no-color   Disable colors in installer output"
-    echo "  --uninstall  Uninstall and optionally restore previous statusline"
-    echo "  --help       Show this help message"
+    echo -e "${BOLD}Installation Options:${NC}"
+    echo "  (none)             Interactive install with multiselect module picker"
+    echo "  --defaults         Install with core modules enabled (default order)"
+    echo "  --minimal          Quick install with minimal modules"
+    echo "  --force            Same as --defaults, no confirmation prompts"
     echo ""
-    echo "Examples:"
-    echo "  $0                      # Interactive multiselect installation"
+    echo -e "${BOLD}Display Options:${NC}"
+    echo "  --no-emoji         Disable emojis in installer and generated config"
+    echo "  --no-color         Disable colors in installer output"
+    echo ""
+    echo -e "${BOLD}Update Options:${NC}"
+    echo "  --check-update     Check if a newer version is available"
+    echo "  --update           Download and install the latest version"
+    echo "  --skip-update-check  Skip automatic update check during install"
+    echo "  --version, -v      Show current version"
+    echo ""
+    echo -e "${BOLD}Other Options:${NC}"
+    echo "  --uninstall        Uninstall and optionally restore previous statusline"
+    echo "  --help, -h         Show this help message"
+    echo ""
+    echo -e "${BOLD}Examples:${NC}"
+    echo "  $0                      # Interactive installation"
+    echo "  $0 --check-update       # Check for updates"
     echo "  $0 --no-emoji           # Install without emojis"
     echo "  $0 --minimal --no-emoji # Minimal install, no emojis"
     echo ""
@@ -1446,6 +1782,22 @@ parse_args() {
                 INSTALL_MODE="minimal"
                 shift
                 ;;
+            --update)
+                INSTALL_MODE="update"
+                shift
+                ;;
+            --check-update|--check)
+                INSTALL_MODE="check-update"
+                shift
+                ;;
+            --skip-update-check)
+                SKIP_UPDATE_CHECK="true"
+                shift
+                ;;
+            --version|-v)
+                INSTALL_MODE="version"
+                shift
+                ;;
             --help|-h)
                 INSTALL_MODE="help"
                 shift
@@ -1465,6 +1817,47 @@ parse_args() {
 main() {
     parse_args "$@"
     setup_colors
+
+    # Handle version display
+    if [ "$INSTALL_MODE" = "version" ]; then
+        local ver=$(get_local_version)
+        echo "Barista v$ver"
+        exit 0
+    fi
+
+    # Handle update check only
+    if [ "$INSTALL_MODE" = "check-update" ]; then
+        show_banner
+        print_info "Checking for updates..."
+        if check_for_updates; then
+            prompt_update
+        else
+            local ver=$(get_local_version)
+            print_success "You have the latest version ($ver)"
+        fi
+        exit 0
+    fi
+
+    # Handle forced update
+    if [ "$INSTALL_MODE" = "update" ]; then
+        show_banner
+        print_info "Checking for updates..."
+        if check_for_updates; then
+            do_update
+        else
+            local ver=$(get_local_version)
+            print_success "Already up to date ($ver)"
+        fi
+        exit 0
+    fi
+
+    # Check for updates before install (unless skipped)
+    if [ "$SKIP_UPDATE_CHECK" != "true" ] && [ "$INSTALL_MODE" != "uninstall" ] && [ "$INSTALL_MODE" != "help" ]; then
+        if check_for_updates; then
+            setup_colors  # Ensure colors are set before prompt
+            prompt_update
+        fi
+    fi
 
     case "$INSTALL_MODE" in
         uninstall)
