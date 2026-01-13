@@ -5,7 +5,7 @@
 A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that brews real-time development information including context usage, rate limits, costs, and more.
 
 ![Barista](https://img.shields.io/badge/Barista-Claude_Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.1.0-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.2.0-green?style=for-the-badge)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
@@ -13,9 +13,15 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
   <img src="demo.gif" alt="Barista Demo" width="800">
 </p>
 
-## What's New in v1.1.0 🆕
+## What's New in v1.2.0 🆕
 
-- **Auto-Update Checking** - Barista now checks GitHub for updates and can self-update
+- **Memory Optimizations** - Fixed unbounded history file growth, added file size caps
+- **Interactive Update Check** - Installer now prompts to check for updates on startup with version display
+- **4-Level Rate Limit Colors** - Visual indicators at 50%/75%/95% thresholds (🟢→🟡→🟠→🔴)
+- **Monorepo Performance** - Git module now limits output to prevent memory spikes in large repos
+
+### v1.1.0
+- **Auto-Update Checking** - Barista checks GitHub for updates and can self-update
 - **Interactive Installer** - Arrow key navigation with space to toggle selections
 - **Customizable Separators** - Choose from pipe, arrow, bullet, and more
 - **Color Themes** - Default, minimal, vibrant, or monochrome
@@ -65,7 +71,7 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
 ## Fresh Brew Sample
 
 ```
-📁 myproject | 📊 ██████░░ 75%🔴 (10k→⚡) | 🌿 main [●+] 📝 3 | ⚡ Nuxt 🚀 | 🤖 Claude Opus 4.5 | 💰 $2.50 @$5.00/h | 5h:45%🟡 7d:23%🟢 | 📅 01/12 🕐 04:30 PM | 🔋 85%
+📁 myproject | 📊 ██████░░ 75%🔴 (10k→⚡) | 🌿 main [●+] 📝 3 | ⚡ Nuxt 🚀 | 🤖 Claude Opus 4.5 | 💰 $2.50 @$5.00/h | 5h:45%🟢 7d:78%🟠 | 📅 01/12 🕐 04:30 PM | 🔋 85%
 ```
 
 **With different separators:**
@@ -77,11 +83,20 @@ DIR: myproject | CTX: ####---- 50%[OK] | GIT: main      # ASCII mode
 
 ### Temperature Gauge
 
-| Indicator | Context Usage | Rate Limits |
-|-----------|---------------|-------------|
-| 🟢 | Below 60% - Smooth sipping | Projected to stay under limit |
-| 🟡 | 60-75% - Getting hot | Warning, approaching threshold |
-| 🔴 | Above 75% - Boiling over | Critical, limit imminent |
+**Context Usage (3-level):**
+| Indicator | Usage | Status |
+|-----------|-------|--------|
+| 🟢 | Below 60% | Smooth sipping |
+| 🟡 | 60-75% | Getting warm |
+| 🔴 | Above 75% | Boiling over |
+
+**Rate Limits (4-level):**
+| Indicator | Usage | Status |
+|-----------|-------|--------|
+| 🟢 | Below 50% | Plenty of headroom |
+| 🟡 | 50-75% | Moderate usage |
+| 🟠 | 75-95% | High usage |
+| 🔴 | Above 95% | Critical, near limit |
 
 ## Requirements
 
@@ -247,6 +262,15 @@ MODULE_DISK="false"
 MODULE_NETWORK="false"
 MODULE_LOAD="false"
 
+# =============================================================================
+# RATE LIMIT SETTINGS (v1.2.0+)
+# =============================================================================
+
+RATE_SHOW_USAGE_STATUS="true"   # Show 4-level color indicators
+RATE_LOW_THRESHOLD=50           # Green/yellow boundary
+RATE_MEDIUM_THRESHOLD=75        # Yellow/orange boundary
+RATE_HIGH_THRESHOLD=95          # Orange/red boundary
+
 # Custom order
 MODULE_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
 ```
@@ -378,6 +402,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 **Enjoy your fresh brew!** ☕
 
-*Barista v1.1.0 - Because your Claude Code deserves a great statusline.*
+*Barista v1.2.0 - Because your Claude Code deserves a great statusline.*
 
 </div>
