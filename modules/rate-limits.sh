@@ -7,8 +7,12 @@
 #   RATE_SHOW_7D            - Show 7-day rate limit (default: true)
 #   RATE_SHOW_TIME_REMAINING - Show time until reset (default: true)
 #   RATE_SHOW_PROJECTION    - Show projection status (default: true)
-#   RATE_WARNING_THRESHOLD  - Yellow warning at % (default: 80)
-#   RATE_CRITICAL_THRESHOLD - Red warning at % (default: 100)
+#   RATE_SHOW_USAGE_STATUS  - Show usage level indicator (default: true)
+#   RATE_LOW_THRESHOLD      - Green/yellow boundary (default: 50)
+#   RATE_MEDIUM_THRESHOLD   - Yellow/orange boundary (default: 75)
+#   RATE_HIGH_THRESHOLD     - Orange/red boundary (default: 95)
+#   RATE_WARNING_THRESHOLD  - Yellow warning at % for projections (default: 80)
+#   RATE_CRITICAL_THRESHOLD - Red warning at % for projections (default: 100)
 #   RATE_COMPACT            - Compact mode (default: false)
 #   RATE_5H_LABEL           - Label for 5-hour (default: 5h)
 #   RATE_7D_LABEL           - Label for 7-day (default: 7d)
@@ -45,13 +49,20 @@ module_rate_limits() {
     local show_5h="${RATE_SHOW_5H:-true}"
     local show_7d="${RATE_SHOW_7D:-true}"
     local show_time="${RATE_SHOW_TIME_REMAINING:-true}"
+    local show_usage_status="${RATE_SHOW_USAGE_STATUS:-true}"
     local compact="${RATE_COMPACT:-false}"
     local label_5h="${RATE_5H_LABEL:-5h}"
     local label_7d="${RATE_7D_LABEL:-7d}"
 
+    # 4-level usage thresholds: green -> yellow -> orange -> red
+    local low_thresh="${RATE_LOW_THRESHOLD:-50}"
+    local medium_thresh="${RATE_MEDIUM_THRESHOLD:-75}"
+    local high_thresh="${RATE_HIGH_THRESHOLD:-95}"
+
     local cache_file="/tmp/.claude_usage_cache"
     local history_file="$HOME/.claude/.usage_history"
     local usage_data=""
+    local fresh_fetch=false
 
     # Read from cache if fresh
     if [ -f "$cache_file" ]; then
@@ -66,6 +77,7 @@ module_rate_limits() {
         usage_data=$(_get_claude_usage)
         if [ -n "$usage_data" ]; then
             echo "$usage_data" > "$cache_file" 2>/dev/null
+            fresh_fetch=true
         fi
     fi
 
@@ -95,14 +107,32 @@ module_rate_limits() {
 
     local now=$(date +%s)
 
-    # Record data point to history
-    echo "$now,$five_hour,$seven_day,$five_hour_reset,$seven_day_reset" >> "$history_file" 2>/dev/null
+    # Only record data point when fresh data was fetched (not from cache)
+    # This prevents unbounded file growth from frequent statusline invocations
+    if [ "$fresh_fetch" = "true" ]; then
+        # Cap history file size at 50KB to prevent memory issues
+        local max_history_size=51200
+        local current_size=0
+        if [ -f "$history_file" ]; then
+            current_size=$(stat -f %z "$history_file" 2>/dev/null || echo 0)
+        fi
 
-    # Cleanup old entries
-    if [ -f "$history_file" ]; then
-        local cutoff=$((now - 86400))
-        tail -100 "$history_file" | awk -F',' -v cutoff="$cutoff" '$1 >= cutoff' > "${history_file}.tmp" 2>/dev/null
-        mv "${history_file}.tmp" "$history_file" 2>/dev/null
+        # Cleanup first if file is too large
+        if [ "$current_size" -gt "$max_history_size" ]; then
+            local cutoff=$((now - 86400))
+            tail -50 "$history_file" | awk -F',' -v cutoff="$cutoff" '$1 >= cutoff' > "${history_file}.tmp" 2>/dev/null && \
+                mv "${history_file}.tmp" "$history_file" 2>/dev/null
+        fi
+
+        # Record the data point
+        echo "$now,$five_hour,$seven_day,$five_hour_reset,$seven_day_reset" >> "$history_file" 2>/dev/null
+
+        # Routine cleanup - keep last 100 entries within 24 hours
+        if [ -f "$history_file" ]; then
+            local cutoff=$((now - 86400))
+            tail -100 "$history_file" | awk -F',' -v cutoff="$cutoff" '$1 >= cutoff' > "${history_file}.tmp" 2>/dev/null && \
+                mv "${history_file}.tmp" "$history_file" 2>/dev/null
+        fi
     fi
 
     local five_hour_status=""
@@ -178,18 +208,26 @@ module_rate_limits() {
     local five_hour_int=$(printf "%.0f" "$five_hour" 2>/dev/null || echo "0")
     local seven_day_int=$(printf "%.0f" "$seven_day" 2>/dev/null || echo "0")
 
+    # Get usage level indicators (4-level: green/yellow/orange/red)
+    local five_hour_usage_ind=""
+    local seven_day_usage_ind=""
+    if [ "$show_usage_status" = "true" ]; then
+        five_hour_usage_ind=$(get_status_4level "$five_hour_int" "$low_thresh" "$medium_thresh" "$high_thresh")
+        seven_day_usage_ind=$(get_status_4level "$seven_day_int" "$low_thresh" "$medium_thresh" "$high_thresh")
+    fi
+
     # Build output
     local result=""
 
     if [ "$show_5h" = "true" ]; then
-        result="${label_5h}:${five_hour_int}%${five_hour_status}"
+        result="${label_5h}:${five_hour_int}%${five_hour_usage_ind}${five_hour_status}"
         if [ "$show_time" = "true" ] && [ "$five_hour_remaining" -gt 0 ] 2>/dev/null && ! is_compact "$compact"; then
             result="${result}($(format_time_remaining $five_hour_remaining))"
         fi
     fi
 
     if [ "$show_7d" = "true" ]; then
-        local seven_day_part="${label_7d}:${seven_day_int}%${seven_day_status}"
+        local seven_day_part="${label_7d}:${seven_day_int}%${seven_day_usage_ind}${seven_day_status}"
         if [ "$show_time" = "true" ] && [ "$seven_day_remaining" -gt 0 ] 2>/dev/null && ! is_compact "$compact"; then
             seven_day_part="${seven_day_part}($(format_time_remaining $seven_day_remaining))"
         fi

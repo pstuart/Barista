@@ -170,6 +170,57 @@ prompt_update() {
     return 1
 }
 
+# Interactive startup update check - prompts user before checking
+interactive_update_check() {
+    local local_ver=$(get_local_version)
+
+    echo ""
+    read -p "Check for updates? [Y/n]: " check_choice
+
+    if [ "$check_choice" = "n" ] || [ "$check_choice" = "N" ]; then
+        echo ""
+        return 1
+    fi
+
+    echo ""
+    print_info "Checking for updates..."
+
+    local remote_ver=$(check_remote_version)
+
+    if [ -z "$remote_ver" ]; then
+        print_warning "Could not check for updates (no network?)"
+        echo ""
+        return 1
+    fi
+
+    if version_lt "$local_ver" "$remote_ver"; then
+        UPDATE_AVAILABLE="true"
+        REMOTE_VERSION="$remote_ver"
+
+        echo ""
+        echo -e "  ${YELLOW}Installed:${NC} v${local_ver}"
+        echo -e "  ${GREEN}Available:${NC} v${remote_ver} $(emoji '🆕' '[NEW]')"
+        echo ""
+        echo "  View changes: https://github.com/$GITHUB_REPO/releases"
+        echo ""
+
+        read -p "Update now before installing? [Y/n]: " update_choice
+
+        if [ "$update_choice" != "n" ] && [ "$update_choice" != "N" ]; then
+            do_update
+            return $?
+        fi
+    else
+        echo ""
+        echo -e "  ${GREEN}Installed:${NC} v${local_ver}"
+        echo -e "  ${DIM}Latest:${NC}    v${remote_ver}"
+        print_success "You have the latest version!"
+        echo ""
+    fi
+
+    return 0
+}
+
 # Perform the update
 do_update() {
     print_info "Updating Barista..."
@@ -419,7 +470,9 @@ show_banner() {
 EOF
     echo -e "${NC}"
     local coffee=$(emoji "☕" "")
+    local ver=$(get_local_version)
     echo -e "  ${DIM}Serving up fresh stats for Claude Code${NC} $coffee"
+    echo -e "  ${DIM}Version: ${NC}${BOLD}v${ver}${NC}"
     echo ""
 }
 
@@ -1428,7 +1481,10 @@ do_uninstall() {
 # =============================================================================
 do_install() {
     local mode="$1"
-    show_banner
+    # Banner already shown in interactive mode during update check
+    if [ "$mode" != "interactive" ]; then
+        show_banner
+    fi
 
     # Check requirements
     print_info "Checking requirements..."
@@ -1853,9 +1909,16 @@ main() {
 
     # Check for updates before install (unless skipped)
     if [ "$SKIP_UPDATE_CHECK" != "true" ] && [ "$INSTALL_MODE" != "uninstall" ] && [ "$INSTALL_MODE" != "help" ]; then
-        if check_for_updates; then
-            setup_colors  # Ensure colors are set before prompt
-            prompt_update
+        # In interactive mode, show banner first and ask user if they want to check
+        if [ "$INSTALL_MODE" = "interactive" ]; then
+            show_banner
+            interactive_update_check
+        else
+            # Non-interactive modes: silent check, only prompt if update available
+            if check_for_updates; then
+                setup_colors  # Ensure colors are set before prompt
+                prompt_update
+            fi
         fi
     fi
 

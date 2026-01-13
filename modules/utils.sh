@@ -182,6 +182,51 @@ get_status() {
     fi
 }
 
+# Get 4-level status indicator for rate limits
+# Usage: get_status_4level <value> <low> <medium> <high> <critical>
+# Returns: green (<low), yellow (low-medium), orange (medium-high), red (>=high)
+get_status_4level() {
+    local value=$(safe_int "$1" 0)
+    local low=$(safe_int "$2" 50)
+    local medium=$(safe_int "$3" 75)
+    local high=$(safe_int "$4" 95)
+
+    if [ "${USE_STATUS_INDICATORS:-true}" != "true" ]; then
+        echo ""
+        return
+    fi
+
+    local green="${STATUS_GREEN:-🟢}"
+    local yellow="${STATUS_YELLOW:-🟡}"
+    local orange="${STATUS_ORANGE:-🟠}"
+    local red="${STATUS_RED:-🔴}"
+
+    case "${STATUS_STYLE:-emoji}" in
+        ascii)
+            green="[OK]"
+            yellow="[MED]"
+            orange="[HIGH]"
+            red="[CRIT]"
+            ;;
+        dots)
+            green="●"
+            yellow="●"
+            orange="●"
+            red="●"
+            ;;
+    esac
+
+    if [ "$value" -ge "$high" ] 2>/dev/null; then
+        echo "$red"
+    elif [ "$value" -ge "$medium" ] 2>/dev/null; then
+        echo "$orange"
+    elif [ "$value" -ge "$low" ] 2>/dev/null; then
+        echo "$yellow"
+    else
+        echo "$green"
+    fi
+}
+
 # =============================================================================
 # ICON HANDLING
 # =============================================================================

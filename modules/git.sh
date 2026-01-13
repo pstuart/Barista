@@ -62,9 +62,15 @@ module_git() {
 
     # PERFORMANCE OPTIMIZATION: Use single git status --porcelain call
     # This replaces 4 separate git commands with 1
+    # MEMORY OPTIMIZATION: Limit output to prevent OOM in large monorepos
     if [ "$show_status" = "true" ] || [ "$show_count" = "true" ]; then
         local git_porcelain
-        git_porcelain=$(git status --porcelain 2>/dev/null)
+        local max_lines=500  # Cap to prevent memory issues in monorepos
+        local line_count=0
+        local hit_limit=false
+
+        # Use head to limit output and prevent loading megabytes of data
+        git_porcelain=$(git status --porcelain 2>/dev/null | head -n "$max_lines")
 
         if [ "$show_status" = "true" ]; then
             local has_modified=false
@@ -116,15 +122,23 @@ module_git() {
         if [ "$show_count" = "true" ] && ! is_compact "$compact"; then
             # Count non-empty lines from porcelain output
             local modified_count=0
+            local count_display=""
             if [ -n "$git_porcelain" ]; then
                 modified_count=$(echo "$git_porcelain" | grep -c '^' 2>/dev/null || echo "0")
+                # If we hit the limit, get actual count efficiently with wc -l
+                if [ "$modified_count" -ge "$max_lines" ]; then
+                    modified_count=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+                    count_display="${modified_count}"
+                else
+                    count_display="${modified_count}"
+                fi
             fi
 
             if [ "$modified_count" -gt 0 ] 2>/dev/null; then
                 if [ -n "$file_icon" ]; then
-                    result="$result $file_icon $modified_count"
+                    result="$result $file_icon $count_display"
                 else
-                    result="$result $modified_count files"
+                    result="$result $count_display files"
                 fi
             fi
         fi
