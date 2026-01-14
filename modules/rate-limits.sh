@@ -220,16 +220,16 @@ module_rate_limits() {
     local result=""
 
     if [ "$show_5h" = "true" ]; then
-        result="${label_5h}:${five_hour_int}%${five_hour_usage_ind}${five_hour_status}"
+        result="${label_5h}:${five_hour_int}% ${five_hour_usage_ind}${five_hour_status}"
         if [ "$show_time" = "true" ] && [ "$five_hour_remaining" -gt 0 ] 2>/dev/null && ! is_compact "$compact"; then
-            result="${result}($(format_time_remaining $five_hour_remaining))"
+            result="${result} ($(format_time_remaining $five_hour_remaining))"
         fi
     fi
 
     if [ "$show_7d" = "true" ]; then
-        local seven_day_part="${label_7d}:${seven_day_int}%${seven_day_usage_ind}${seven_day_status}"
+        local seven_day_part="${label_7d}:${seven_day_int}% ${seven_day_usage_ind}${seven_day_status}"
         if [ "$show_time" = "true" ] && [ "$seven_day_remaining" -gt 0 ] 2>/dev/null && ! is_compact "$compact"; then
-            seven_day_part="${seven_day_part}($(format_time_remaining $seven_day_remaining))"
+            seven_day_part="${seven_day_part} ($(format_time_remaining $seven_day_remaining))"
         fi
         result="${result:+$result }${seven_day_part}"
     fi
