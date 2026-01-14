@@ -141,6 +141,122 @@ safe_percent() {
 }
 
 # =============================================================================
+# COLOR THEME SYSTEM
+# =============================================================================
+# Themes define the visual style of status indicators and icons
+# Call apply_theme() after loading config to set up theme-specific values
+
+apply_theme() {
+    local theme="${COLOR_THEME:-default}"
+
+    case "$theme" in
+        minimal)
+            # Subtle, understated - simple geometric shapes
+            STATUS_GREEN="${STATUS_GREEN:-◦}"
+            STATUS_YELLOW="${STATUS_YELLOW:-◦}"
+            STATUS_ORANGE="${STATUS_ORANGE:-◦}"
+            STATUS_RED="${STATUS_RED:-●}"
+            # Minimal icons - simple arrows and symbols
+            DIRECTORY_ICON="${DIRECTORY_ICON:-→}"
+            CONTEXT_ICON="${CONTEXT_ICON:-◐}"
+            GIT_ICON="${GIT_ICON:-⎇}"
+            MODEL_ICON="${MODEL_ICON:-◈}"
+            COST_ICON="${COST_ICON:-$}"
+            TIME_DATE_ICON="${TIME_DATE_ICON:-}"
+            TIME_CLOCK_ICON="${TIME_CLOCK_ICON:-}"
+            BATTERY_ICON="${BATTERY_ICON:-⚡}"
+            CPU_ICON="${CPU_ICON:-▪}"
+            MEMORY_ICON="${MEMORY_ICON:-▫}"
+            NODE_ICON="${NODE_ICON:-⬡}"
+            # Minimal progress bar
+            PROGRESS_BAR_FILLED="${PROGRESS_BAR_FILLED:-▪}"
+            PROGRESS_BAR_EMPTY="${PROGRESS_BAR_EMPTY:-·}"
+            ;;
+
+        vibrant)
+            # Bold, expressive - colorful emoji with more impact
+            STATUS_GREEN="${STATUS_GREEN:-💚}"
+            STATUS_YELLOW="${STATUS_YELLOW:-💛}"
+            STATUS_ORANGE="${STATUS_ORANGE:-🧡}"
+            STATUS_RED="${STATUS_RED:-❤️}"
+            # Vibrant icons - more expressive emoji
+            DIRECTORY_ICON="${DIRECTORY_ICON:-📂}"
+            CONTEXT_ICON="${CONTEXT_ICON:-🎯}"
+            GIT_ICON="${GIT_ICON:-🔀}"
+            MODEL_ICON="${MODEL_ICON:-🧠}"
+            COST_ICON="${COST_ICON:-💸}"
+            TIME_DATE_ICON="${TIME_DATE_ICON:-🗓️}"
+            TIME_CLOCK_ICON="${TIME_CLOCK_ICON:-⏰}"
+            BATTERY_ICON="${BATTERY_ICON:-🔌}"
+            CPU_ICON="${CPU_ICON:-⚙️}"
+            MEMORY_ICON="${MEMORY_ICON:-💾}"
+            NODE_ICON="${NODE_ICON:-💎}"
+            # Vibrant progress bar
+            PROGRESS_BAR_FILLED="${PROGRESS_BAR_FILLED:-▓}"
+            PROGRESS_BAR_EMPTY="${PROGRESS_BAR_EMPTY:-░}"
+            ;;
+
+        monochrome)
+            # No color, pure ASCII - terminal friendly
+            STATUS_GREEN="${STATUS_GREEN:-[OK]}"
+            STATUS_YELLOW="${STATUS_YELLOW:-[~~]}"
+            STATUS_ORANGE="${STATUS_ORANGE:-[!!]}"
+            STATUS_RED="${STATUS_RED:-[XX]}"
+            # ASCII text labels
+            DIRECTORY_ICON="${DIRECTORY_ICON:-DIR:}"
+            CONTEXT_ICON="${CONTEXT_ICON:-CTX:}"
+            GIT_ICON="${GIT_ICON:-GIT:}"
+            MODEL_ICON="${MODEL_ICON:-AI:}"
+            COST_ICON="${COST_ICON:-\$:}"
+            TIME_DATE_ICON="${TIME_DATE_ICON:-}"
+            TIME_CLOCK_ICON="${TIME_CLOCK_ICON:-}"
+            BATTERY_ICON="${BATTERY_ICON:-BAT:}"
+            CPU_ICON="${CPU_ICON:-CPU:}"
+            MEMORY_ICON="${MEMORY_ICON:-MEM:}"
+            NODE_ICON="${NODE_ICON:-NODE:}"
+            # ASCII progress bar
+            PROGRESS_BAR_FILLED="${PROGRESS_BAR_FILLED:-#}"
+            PROGRESS_BAR_EMPTY="${PROGRESS_BAR_EMPTY:--}"
+            # Force ASCII status style
+            STATUS_STYLE="ascii"
+            USE_ICONS="false"
+            ;;
+
+        nerd)
+            # Nerd Font icons - requires Nerd Font installed
+            STATUS_GREEN="${STATUS_GREEN:-}"
+            STATUS_YELLOW="${STATUS_YELLOW:-}"
+            STATUS_ORANGE="${STATUS_ORANGE:-}"
+            STATUS_RED="${STATUS_RED:-}"
+            # Nerd Font icons
+            DIRECTORY_ICON="${DIRECTORY_ICON:-}"
+            CONTEXT_ICON="${CONTEXT_ICON:-}"
+            GIT_ICON="${GIT_ICON:-}"
+            MODEL_ICON="${MODEL_ICON:-}"
+            COST_ICON="${COST_ICON:-}"
+            TIME_DATE_ICON="${TIME_DATE_ICON:-}"
+            TIME_CLOCK_ICON="${TIME_CLOCK_ICON:-}"
+            BATTERY_ICON="${BATTERY_ICON:-}"
+            CPU_ICON="${CPU_ICON:-}"
+            MEMORY_ICON="${MEMORY_ICON:-}"
+            NODE_ICON="${NODE_ICON:-}"
+            # Nerd Font progress bar
+            PROGRESS_BAR_FILLED="${PROGRESS_BAR_FILLED:-█}"
+            PROGRESS_BAR_EMPTY="${PROGRESS_BAR_EMPTY:-░}"
+            ;;
+
+        *)
+            # default - Standard emoji (no changes needed, uses config defaults)
+            # Status indicators use standard colored circles
+            STATUS_GREEN="${STATUS_GREEN:-🟢}"
+            STATUS_YELLOW="${STATUS_YELLOW:-🟡}"
+            STATUS_ORANGE="${STATUS_ORANGE:-🟠}"
+            STATUS_RED="${STATUS_RED:-🔴}"
+            ;;
+    esac
+}
+
+# =============================================================================
 # STATUS INDICATORS
 # =============================================================================
 
@@ -173,12 +289,18 @@ get_status() {
             ;;
     esac
 
+    # Add spacing before indicator in normal/verbose mode, none in compact
+    local prefix=""
+    if [ "${DISPLAY_MODE:-normal}" != "compact" ]; then
+        prefix=" "
+    fi
+
     if [ "$value" -ge "$critical" ] 2>/dev/null; then
-        echo "$red"
+        echo "${prefix}${red}"
     elif [ "$value" -ge "$warning" ] 2>/dev/null; then
-        echo "$yellow"
+        echo "${prefix}${yellow}"
     else
-        echo "$green"
+        echo "${prefix}${green}"
     fi
 }
 
@@ -216,14 +338,20 @@ get_status_4level() {
             ;;
     esac
 
+    # Add spacing before indicator in normal/verbose mode, none in compact
+    local prefix=""
+    if [ "${DISPLAY_MODE:-normal}" != "compact" ]; then
+        prefix=" "
+    fi
+
     if [ "$value" -ge "$high" ] 2>/dev/null; then
-        echo "$red"
+        echo "${prefix}${red}"
     elif [ "$value" -ge "$medium" ] 2>/dev/null; then
-        echo "$orange"
+        echo "${prefix}${orange}"
     elif [ "$value" -ge "$low" ] 2>/dev/null; then
-        echo "$yellow"
+        echo "${prefix}${yellow}"
     else
-        echo "$green"
+        echo "${prefix}${green}"
     fi
 }
 

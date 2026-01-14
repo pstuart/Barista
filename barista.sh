@@ -259,6 +259,18 @@ main() {
         fi
     fi
 
+    # Apply color theme settings (must be after all config loading)
+    if type apply_theme >/dev/null 2>&1; then
+        apply_theme
+    fi
+
+    # Adjust separator based on display mode
+    # Normal/verbose modes get padded separators, compact mode gets no padding
+    if [ "${DISPLAY_MODE:-normal}" = "compact" ]; then
+        # Strip whitespace from separator for compact mode
+        SEPARATOR=$(echo "$SEPARATOR" | tr -d ' ')
+    fi
+
     # Default module order if not specified
     local DEFAULT_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
 

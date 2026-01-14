@@ -5,7 +5,7 @@
 A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that brews real-time development information including context usage, rate limits, costs, and more.
 
 ![Barista](https://img.shields.io/badge/Barista-Claude_Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.2.0-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.3.0-green?style=for-the-badge)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
@@ -13,8 +13,19 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
   <img src="demo.gif" alt="Barista Demo" width="800">
 </p>
 
-## What's New in v1.2.0 🆕
+## What's New in v1.3.0 🆕
 
+- **Enhanced Color Themes** - 5 distinct visual themes that actually look different:
+  - `default` - Standard emoji (🟢🟡🟠🔴)
+  - `minimal` - Subtle geometric shapes (◦ ◐ → ⎇)
+  - `vibrant` - Bold heart colors (💚💛🧡❤️)
+  - `monochrome` - Pure ASCII ([OK] [~~] [!!] [XX])
+  - `nerd` - Nerd Font icons (requires Nerd Font)
+- **Improved Spacing** - Status indicators now have proper spacing in normal/verbose modes
+- **Smart Compact Mode** - Separator padding and status spacing automatically removed in compact mode
+- **Fixed Installer Preview** - Preview now shows actual sample data instead of just icons
+
+### v1.2.0
 - **Memory Optimizations** - Fixed unbounded history file growth, added file size caps
 - **Interactive Update Check** - Installer now prompts to check for updates on startup with version display
 - **4-Level Rate Limit Colors** - Visual indicators at 50%/75%/95% thresholds (🟢→🟡→🟠→🔴)
@@ -402,6 +413,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 **Enjoy your fresh brew!** ☕
 
-*Barista v1.2.0 - Because your Claude Code deserves a great statusline.*
+*Barista v1.3.0 - Because your Claude Code deserves a great statusline.*
 
 </div>

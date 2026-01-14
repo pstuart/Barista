@@ -407,6 +407,182 @@ get_module_description() {
     esac
 }
 
+# Get sample preview data for a module (icon + sample value)
+get_module_sample() {
+    local module="$1"
+    local status=""
+
+    # Get status indicator based on current style
+    case "$STATUS_STYLE" in
+        emoji) status="🟢" ;;
+        dots)  status="●" ;;
+        ascii) status="[OK]" ;;
+    esac
+
+    # Build progress bar sample
+    local bar="${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}"
+
+    case "$module" in
+        directory)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "📁 myproject"
+            else
+                echo "DIR: myproject"
+            fi
+            ;;
+        context)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "📊 $bar 50%$status"
+            else
+                echo "CTX: $bar 50%$status"
+            fi
+            ;;
+        git)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🌿 main [●+]"
+            else
+                echo "GIT: main [●+]"
+            fi
+            ;;
+        project)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "⚡ Nuxt"
+            else
+                echo "PRJ: Nuxt"
+            fi
+            ;;
+        model)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🤖 Opus 4.5"
+            else
+                echo "AI: Opus 4.5"
+            fi
+            ;;
+        cost)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "💰 \$1.25"
+            else
+                echo "\$: \$1.25"
+            fi
+            ;;
+        rate-limits)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "5h:45%$status 7d:23%$status"
+            else
+                echo "5h:45%$status 7d:23%$status"
+            fi
+            ;;
+        time)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "📅 01/14 🕐 03:30 PM"
+            else
+                echo "01/14 03:30 PM"
+            fi
+            ;;
+        battery)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🔋 85% ⚡"
+            else
+                echo "BAT: 85%"
+            fi
+            ;;
+        cpu)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "💻 23%$status"
+            else
+                echo "CPU: 23%$status"
+            fi
+            ;;
+        memory)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🧠 58%$status"
+            else
+                echo "MEM: 58%$status"
+            fi
+            ;;
+        disk)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "💾 42%$status"
+            else
+                echo "DSK: 42%$status"
+            fi
+            ;;
+        network)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🌐 192.168.1.42"
+            else
+                echo "NET: 192.168.1.42"
+            fi
+            ;;
+        uptime)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "⏱️ 3d 5h"
+            else
+                echo "UP: 3d 5h"
+            fi
+            ;;
+        load)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "📊 1.24$status"
+            else
+                echo "LD: 1.24$status"
+            fi
+            ;;
+        temperature)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🌡️ 52°C$status"
+            else
+                echo "TMP: 52C$status"
+            fi
+            ;;
+        brightness)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "☀️ 75%"
+            else
+                echo "BRT: 75%"
+            fi
+            ;;
+        processes)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🔄 245"
+            else
+                echo "PRC: 245"
+            fi
+            ;;
+        docker)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🐳 3$status"
+            else
+                echo "DOC: 3$status"
+            fi
+            ;;
+        node)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "⬢ 22.12.0"
+            else
+                echo "NODE: 22.12.0"
+            fi
+            ;;
+        weather)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🌤️ 72°F"
+            else
+                echo "WTH: 72F"
+            fi
+            ;;
+        timezone)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🌍 UTC:20:30"
+            else
+                echo "TZ: UTC:20:30"
+            fi
+            ;;
+        *)
+            echo "?"
+            ;;
+    esac
+}
+
 # Parse module definition string
 get_module_name() { echo "$1" | cut -d: -f1; }
 get_module_default() { echo "$1" | cut -d: -f2; }
@@ -996,15 +1172,17 @@ interactive_display_preferences() {
 
     # Color theme
     interactive_choice "Color Theme:" \
-        "Default|Standard colors" \
-        "Minimal|Subdued, less color" \
-        "Vibrant|Bold, high contrast" \
-        "Monochrome|Single color accent"
+        "Default|Standard emoji (🟢🟡🔴)" \
+        "Minimal|Subtle shapes (◦ ◐ →)" \
+        "Vibrant|Bold hearts (💚💛🧡❤️)" \
+        "Monochrome|ASCII only ([OK] [!!])" \
+        "Nerd Font|Nerd Font icons ()"
 
     case "$CHOICE_RESULT" in
         1) COLOR_THEME="minimal" ;;
         2) COLOR_THEME="vibrant" ;;
         3) COLOR_THEME="monochrome" ;;
+        4) COLOR_THEME="nerd" ;;
         *) COLOR_THEME="default" ;;
     esac
     print_success "Color theme: $COLOR_THEME"
@@ -1578,10 +1756,25 @@ do_install() {
     echo "Modules to install (${#SELECTED_MODULES[@]} total):"
 
     local preview=""
+    local sep="$SEPARATOR_CHAR"
     for module in "${SELECTED_MODULES[@]}"; do
-        local icon=$(get_module_description "$module" "icon")
         echo -e "  ${GREEN}+${NC} $module"
-        preview="$preview$icon "
+    done
+
+    # Build preview with sample data (limit to first 5 modules to fit on screen)
+    local count=0
+    for module in "${SELECTED_MODULES[@]}"; do
+        if [ $count -ge 5 ]; then
+            preview="${preview}${sep}..."
+            break
+        fi
+        local sample=$(get_module_sample "$module")
+        if [ -n "$preview" ]; then
+            preview="${preview}${sep}${sample}"
+        else
+            preview="$sample"
+        fi
+        count=$((count + 1))
     done
 
     echo ""
