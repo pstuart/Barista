@@ -55,7 +55,11 @@ module_weather() {
     fi
 
     if [ "$show_temp" = "true" ] && [ -n "$temp" ]; then
-        result="${result}${temp}"
+        if [ -n "$result" ]; then
+            result="${result} ${temp}"
+        else
+            result="${temp}"
+        fi
     fi
 
     # Trim whitespace
