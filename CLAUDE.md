@@ -42,7 +42,7 @@ Barista/
 2. **Configuration is loaded** in order of precedence:
    - Built-in defaults in `barista.sh`
    - `barista.conf` in script directory
-   - `~/.claude/barista.conf` (user overrides)
+   - `$CLAUDE_CONFIG_DIR/barista.conf` (user overrides, defaults to `~/.claude/`)
    - `.barista.conf` in current project directory (per-project overrides)
 3. **Modules are loaded** from `modules/` directory (`utils.sh` first, then all others)
 4. **Modules are executed** in the order specified by `MODULE_ORDER` config
@@ -51,6 +51,7 @@ Barista/
 ## Key Files
 
 ### `barista.sh` (Main Entry Point)
+- Resolves `CLAUDE_CONFIG_DIR` (env var or defaults to `$HOME/.claude`)
 - Defines default configuration values
 - Loads configuration files in precedence order
 - Loads all module files from `modules/`
@@ -178,7 +179,7 @@ echo '{"workspace":{"current_dir":"'$PWD'"},"model":{"display_name":"Test"},"out
 Enable debug mode:
 ```bash
 DEBUG_MODE="true"  # In config
-# Logs to ~/.claude/barista.log
+# Logs to $CLAUDE_CONFIG_DIR/barista.log
 ```
 
 ## Dependencies
@@ -186,6 +187,22 @@ DEBUG_MODE="true"  # In config
 - **Required**: `jq` (JSON processor), `bc` (calculator)
 - **macOS specific**: `security` (keychain access for OAuth tokens)
 - **Optional**: Various CLI tools for specific modules (docker, node, etc.)
+
+## Custom Config Directory
+
+Barista respects the `CLAUDE_CONFIG_DIR` environment variable for users who have moved their Claude configuration from the default `~/.claude/`. This is resolved once in `barista.sh` and inherited by all modules:
+
+```bash
+CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+```
+
+Files stored in this directory:
+- `barista.conf` - User config overrides
+- `barista-cache/` - Cache for expensive operations (weather, network, etc.)
+- `barista.log` - Debug log (when `DEBUG_MODE="true"`)
+- `.usage_history` - Rate limit history for projections
+
+Modules also include their own `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` fallback for robustness if sourced independently.
 
 ## Rate Limits Module
 
