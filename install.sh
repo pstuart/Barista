@@ -63,7 +63,7 @@ setup_colors() {
 # PATHS
 # =============================================================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_DIR="$HOME/.claude"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 BARISTA_DIR="$CLAUDE_DIR/barista"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 BACKUP_DIR="$CLAUDE_DIR/.barista-backup"
@@ -1891,7 +1891,7 @@ do_install() {
 
     if [ -f "$SETTINGS_FILE" ]; then
         local tmp_file=$(mktemp)
-        if jq '.statusLine = {"type": "command", "command": "~/.claude/barista/barista.sh"}' "$SETTINGS_FILE" > "$tmp_file" 2>/dev/null; then
+        if jq --arg cmd "$BARISTA_DIR/barista.sh" '.statusLine = {"type": "command", "command": $cmd}' "$SETTINGS_FILE" > "$tmp_file" 2>/dev/null; then
             mv "$tmp_file" "$SETTINGS_FILE"
             print_success "Updated settings.json"
         else
@@ -1899,11 +1899,11 @@ do_install() {
             print_warning "Could not update settings.json - you may need to configure manually"
         fi
     else
-        cat > "$SETTINGS_FILE" << 'EOF'
+        cat > "$SETTINGS_FILE" << EOF
 {
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/barista/barista.sh"
+    "command": "$BARISTA_DIR/barista.sh"
   }
 }
 EOF

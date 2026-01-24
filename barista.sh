@@ -19,6 +19,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 MODULES_DIR="$SCRIPT_DIR/modules"
 CONFIG_FILE="$SCRIPT_DIR/barista.conf"
 
+# Determine Claude config directory (respects CLAUDE_CONFIG_DIR env var)
+CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+
 # =============================================================================
 # DEFAULT CONFIGURATION
 # =============================================================================
@@ -81,12 +84,12 @@ load_config() {
 # Load configuration in order of precedence:
 # 1. Built-in defaults (above)
 # 2. Script directory config (barista.conf)
-# 3. User config (~/.claude/barista.conf)
+# 3. User config ($CLAUDE_CONFIG_DIR/barista.conf)
 # 4. Per-directory config (.barista.conf in current_dir)
 
 load_config "$CONFIG_FILE"
 
-USER_CONFIG="$HOME/.claude/barista.conf"
+USER_CONFIG="$CLAUDE_CONFIG_DIR/barista.conf"
 load_config "$USER_CONFIG"
 
 # =============================================================================

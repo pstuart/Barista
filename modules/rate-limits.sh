@@ -60,7 +60,7 @@ module_rate_limits() {
     local high_thresh="${RATE_HIGH_THRESHOLD:-95}"
 
     local cache_file="/tmp/.claude_usage_cache"
-    local history_file="$HOME/.claude/.usage_history"
+    local history_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.usage_history"
     local usage_data=""
     local fresh_fetch=false
 

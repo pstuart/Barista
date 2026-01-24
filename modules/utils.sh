@@ -10,7 +10,7 @@
 # =============================================================================
 # Simple file-based caching for expensive operations (weather, network, etc.)
 
-CACHE_DIR="${HOME}/.claude/barista-cache"
+CACHE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/barista-cache"
 
 # Initialize cache directory
 init_cache() {
@@ -500,7 +500,7 @@ format_number() {
 # Debug logging
 log_debug() {
     if [ "${DEBUG_MODE:-false}" = "true" ]; then
-        local log_file="${HOME}/.claude/barista.log"
+        local log_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/barista.log"
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$log_file" 2>/dev/null
     fi
 }
