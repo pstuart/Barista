@@ -5,7 +5,7 @@
 A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that brews real-time development information including context usage, rate limits, costs, and more.
 
 ![Barista](https://img.shields.io/badge/Barista-Claude_Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.3.0-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.4.0-green?style=for-the-badge)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
@@ -13,7 +13,13 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
   <img src="demo.gif" alt="Barista Demo" width="800">
 </p>
 
-## What's New in v1.3.0 🆕
+## What's New in v1.4.0 🆕
+
+- **Custom Config Directory** - Respects `CLAUDE_CONFIG_DIR` environment variable for users who relocate their Claude configuration from `~/.claude/`
+- All paths (cache, logs, usage history, user config) resolve dynamically
+- No changes needed if using the default location
+
+### v1.3.0
 
 - **Enhanced Color Themes** - 5 distinct visual themes that actually look different:
   - `default` - Standard emoji (🟢🟡🟠🔴)
@@ -178,13 +184,14 @@ Barista automatically checks for updates when you run the installer. You can als
 
 1. **Copy barista to your Claude directory:**
    ```bash
-   cp -r barista ~/.claude/barista
-   chmod +x ~/.claude/barista/barista.sh
+   CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+   cp -r barista "$CLAUDE_DIR/barista"
+   chmod +x "$CLAUDE_DIR/barista/barista.sh"
    ```
 
 2. **Configure Claude Code settings:**
 
-   Edit `~/.claude/settings.json`:
+   Edit your `settings.json` (in `$CLAUDE_CONFIG_DIR` or `~/.claude/`):
    ```json
    {
      "statusLine": {
@@ -213,7 +220,31 @@ The installer lets you customize:
 
 ### Configuration Files
 
-Edit `barista.conf` or create `~/.claude/barista.conf` for user overrides.
+Edit `barista.conf` or create a user override config in your Claude config directory:
+
+```bash
+# Default location
+~/.claude/barista.conf
+
+# Or if using a custom config directory
+$CLAUDE_CONFIG_DIR/barista.conf
+```
+
+#### Custom Config Directory
+
+If you've moved your Claude configuration from the default `~/.claude/`, set the `CLAUDE_CONFIG_DIR` environment variable:
+
+```bash
+export CLAUDE_CONFIG_DIR="/path/to/my/claude-config"
+```
+
+Barista will automatically use that directory for:
+- User config overrides (`barista.conf`)
+- Cache files (`barista-cache/`)
+- Debug logs (`barista.log`)
+- Rate limit history (`.usage_history`)
+
+No other configuration changes are needed.
 
 #### Per-Directory Overrides
 
@@ -229,8 +260,8 @@ MODULE_ORDER="directory,context,git,model"
 
 Configuration is loaded in order of precedence:
 1. Built-in defaults
-2. `~/.claude/barista/barista.conf`
-3. `~/.claude/barista.conf` (user overrides)
+2. `barista.conf` (in script directory)
+3. `$CLAUDE_CONFIG_DIR/barista.conf` (user overrides, defaults to `~/.claude/`)
 4. `.barista.conf` (per-directory overrides)
 
 ### Full Configuration Options
@@ -413,6 +444,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 **Enjoy your fresh brew!** ☕
 
-*Barista v1.3.0 - Because your Claude Code deserves a great statusline.*
+*Barista v1.4.0 - Because your Claude Code deserves a great statusline.*
 
 </div>
