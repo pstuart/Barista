@@ -5,7 +5,7 @@
 A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that brews real-time development information including context usage, rate limits, costs, and more.
 
 ![Barista](https://img.shields.io/badge/Barista-Claude_Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.4.0-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.5.0-green?style=for-the-badge)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
@@ -13,7 +13,18 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
   <img src="demo.gif" alt="Barista Demo" width="800">
 </p>
 
-## What's New in v1.4.0 🆕
+## What's New in v1.5.0 🆕
+
+- **Smart Terminal Layout** - New `LAYOUT_MODE` setting with intelligent line wrapping
+  - `smart` (default) - Wraps at separator boundaries when content exceeds terminal width
+  - `newline` - Forces Claude's right-side info to next line
+  - `wrap` - Pads output to line boundary
+  - `truncate` - Cuts output with "..." to fit on same line
+  - `none` - No adjustments, natural terminal behavior
+- Prevents awkward mid-module line breaks on wide statuslines
+- Configurable `RIGHT_SIDE_RESERVE` and `TERMINAL_WIDTH` settings
+
+### v1.4.0
 
 - **Custom Config Directory** - Respects `CLAUDE_CONFIG_DIR` environment variable for users who relocate their Claude configuration from `~/.claude/`
 - All paths (cache, logs, usage history, user config) resolve dynamically
@@ -315,6 +326,14 @@ RATE_HIGH_THRESHOLD=95          # Orange/red boundary
 
 # Custom order
 MODULE_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
+
+# =============================================================================
+# TERMINAL LAYOUT (v1.5.0+)
+# =============================================================================
+
+LAYOUT_MODE="smart"          # "smart", "newline", "wrap", "truncate", "none"
+TERMINAL_WIDTH=""            # Manual override (empty = auto-detect)
+RIGHT_SIDE_RESERVE=20        # Space reserved for Claude's right-side display
 ```
 
 ### Preset Recipes
@@ -444,6 +463,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 **Enjoy your fresh brew!** ☕
 
-*Barista v1.4.0 - Because your Claude Code deserves a great statusline.*
+*Barista v1.5.0 - Because your Claude Code deserves a great statusline.*
 
 </div>
