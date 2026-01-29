@@ -66,6 +66,17 @@ DISPLAY_MODE="normal"
 CACHE_MAX_AGE=60
 DEBUG_MODE="false"
 
+# Terminal layout defaults
+# Layout mode: "smart", "wrap", "truncate", "newline", or "none"
+#   smart    - (default) Join with separator, wrap to new line at separator boundaries
+#   newline  - Add newline at end, Claude's right-side appears on next line
+#   wrap     - Pad output to line boundary (requires accurate terminal width)
+#   truncate - Cut output with "..." to fit on same line as Claude's right-side
+#   none     - No adjustments, natural terminal behavior
+LAYOUT_MODE="smart"
+TERMINAL_WIDTH=""            # Manual terminal width override (empty = auto-detect)
+RIGHT_SIDE_RESERVE=20        # Space reserved on right side of terminal (used by smart/truncate modes)
+
 # =============================================================================
 # CONFIGURATION LOADING
 # =============================================================================
@@ -240,6 +251,82 @@ validate_module_order() {
 }
 
 # =============================================================================
+# SMART LINE WRAPPING
+# =============================================================================
+# Joins modules with separator, wrapping to new lines at separator boundaries
+# when content would exceed available terminal width
+
+wrap_at_separators() {
+    local sections="$1"
+    local separator="$2"
+    local right_reserve="${3:-20}"
+
+    # Get terminal width
+    local term_width
+    if [ -n "${TERMINAL_WIDTH:-}" ]; then
+        term_width="$TERMINAL_WIDTH"
+    else
+        term_width=$(tput cols 2>/dev/null || echo "${COLUMNS:-200}")
+        term_width=${term_width:-200}
+    fi
+
+    local max_line_width=$((term_width - right_reserve))
+
+    local output=""
+    local current_line=""
+
+    # Calculate visible separator length (strip ANSI codes)
+    local sep_visible
+    sep_visible=$(echo "$separator" | sed $'s/\033\[[0-9;]*m//g')
+    local sep_len=${#sep_visible}
+
+    # Process each section (newline-separated input)
+    while IFS= read -r section || [ -n "$section" ]; do
+        [ -z "$section" ] && continue
+
+        # Calculate visible length (strip ANSI codes)
+        local section_visible
+        section_visible=$(echo "$section" | sed $'s/\033\[[0-9;]*m//g')
+        local section_len=${#section_visible}
+
+        if [ -z "$current_line" ]; then
+            # First section on this line
+            current_line="$section"
+        else
+            # Calculate what line would look like with this section added
+            local current_visible
+            current_visible=$(echo "$current_line" | sed $'s/\033\[[0-9;]*m//g')
+            local current_len=${#current_visible}
+            local projected_len=$((current_len + sep_len + section_len))
+
+            if [ "$projected_len" -le "$max_line_width" ]; then
+                # Fits on current line - add with separator
+                current_line="${current_line}${separator}${section}"
+            else
+                # Doesn't fit - output current line and start new one
+                if [ -n "$output" ]; then
+                    output="${output}"$'\n'"${current_line}"
+                else
+                    output="$current_line"
+                fi
+                current_line="$section"
+            fi
+        fi
+    done <<< "$sections"
+
+    # Output the last line
+    if [ -n "$current_line" ]; then
+        if [ -n "$output" ]; then
+            output="${output}"$'\n'"${current_line}"
+        else
+            output="$current_line"
+        fi
+    fi
+
+    echo "$output"
+}
+
+# =============================================================================
 # MAIN EXECUTION
 # =============================================================================
 
@@ -303,7 +390,7 @@ main() {
 
             if [ -n "$output" ]; then
                 if [ -n "$sections" ]; then
-                    sections="${sections}${SEPARATOR}${output}"
+                    sections="${sections}"$'\n'"${output}"
                 else
                     sections="$output"
                 fi
@@ -313,10 +400,110 @@ main() {
     IFS="$old_ifs"
 
     # =============================================================================
-    # OUTPUT
+    # TERMINAL-WIDTH-AWARE OUTPUT
     # =============================================================================
 
-    echo "$sections"
+    local layout_mode="${LAYOUT_MODE:-smart}"
+    local right_reserve="${RIGHT_SIDE_RESERVE:-20}"
+    local output=""
+
+    case "$layout_mode" in
+        smart)
+            # Smart mode (default): join with separator, wrap at separator boundaries
+            # when content would exceed terminal width minus reserve
+            output=$(wrap_at_separators "$sections" "$SEPARATOR" "$right_reserve")
+            ;;
+        newline)
+            # Newline mode: join all with separator, add newline at end
+            # Forces Claude's right-side to next line
+            local first=true
+            while IFS= read -r section || [ -n "$section" ]; do
+                [ -z "$section" ] && continue
+                if [ "$first" = true ]; then
+                    output="$section"
+                    first=false
+                else
+                    output="${output}${SEPARATOR}${section}"
+                fi
+            done <<< "$sections"
+            output="${output}"$'\n'
+            ;;
+        wrap)
+            # Wrap mode: join all with separator, pad to next line boundary
+            local first=true
+            while IFS= read -r section || [ -n "$section" ]; do
+                [ -z "$section" ] && continue
+                if [ "$first" = true ]; then
+                    output="$section"
+                    first=false
+                else
+                    output="${output}${SEPARATOR}${section}"
+                fi
+            done <<< "$sections"
+            local term_width
+            if [ -n "${TERMINAL_WIDTH:-}" ]; then
+                term_width="$TERMINAL_WIDTH"
+            else
+                term_width=$(tput cols 2>/dev/null || echo "${COLUMNS:-200}")
+                term_width=${term_width:-200}
+            fi
+            local visible_output
+            visible_output=$(echo "$output" | sed $'s/\033\[[0-9;]*m//g')
+            local output_len=${#visible_output}
+            local remainder=$((output_len % term_width))
+            if [ "$remainder" -ne 0 ]; then
+                local padding_needed=$((term_width - remainder))
+                local padding
+                padding=$(printf "%${padding_needed}s" "")
+                output="${output}${padding}"
+            fi
+            ;;
+        truncate)
+            # Truncate mode: join all with separator, cut to fit with Claude's right-side
+            local first=true
+            while IFS= read -r section || [ -n "$section" ]; do
+                [ -z "$section" ] && continue
+                if [ "$first" = true ]; then
+                    output="$section"
+                    first=false
+                else
+                    output="${output}${SEPARATOR}${section}"
+                fi
+            done <<< "$sections"
+            local term_width
+            if [ -n "${TERMINAL_WIDTH:-}" ]; then
+                term_width="$TERMINAL_WIDTH"
+            else
+                term_width=$(tput cols 2>/dev/null || echo "${COLUMNS:-200}")
+                term_width=${term_width:-200}
+            fi
+            local available_width=$((term_width - right_reserve))
+            local visible_output
+            visible_output=$(echo "$output" | sed $'s/\033\[[0-9;]*m//g')
+            local output_len=${#visible_output}
+            if [ "$output_len" -gt "$available_width" ]; then
+                local truncate_at=$((available_width - 3))  # Room for "..."
+                if [ "$truncate_at" -gt 0 ]; then
+                    output="${output:0:$truncate_at}..."
+                fi
+            fi
+            ;;
+        none)
+            # No layout adjustments - just join with separator
+            local first=true
+            while IFS= read -r section || [ -n "$section" ]; do
+                [ -z "$section" ] && continue
+                if [ "$first" = true ]; then
+                    output="$section"
+                    first=false
+                else
+                    output="${output}${SEPARATOR}${section}"
+                fi
+            done <<< "$sections"
+            ;;
+    esac
+
+    echo "$output"
 }
 
 # Run main function

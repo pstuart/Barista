@@ -21,3 +21,6 @@ logs/
 
 # Local config overrides (keep barista.conf as the default)
 barista.local.conf
+
+# Claude Code local settings (not shared)
+.claude/settings.local.json
