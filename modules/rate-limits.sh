@@ -1,6 +1,6 @@
 # =============================================================================
 # Rate Limits Module - Shows 5-hour and 7-day usage with projections
-# Requires macOS Keychain with Claude Code OAuth token
+# Supports macOS (Keychain) and Linux (~/.claude/.credentials.json)
 # =============================================================================
 # Configuration options:
 #   RATE_SHOW_5H            - Show 5-hour rate limit (default: true)
@@ -18,10 +18,50 @@
 #   RATE_7D_LABEL           - Label for 7-day (default: 7d)
 # =============================================================================
 
+# Cross-platform helpers
+_is_macos() {
+    [ "$(uname -s)" = "Darwin" ]
+}
+
+_stat_mtime() {
+    if _is_macos; then
+        stat -f %m "$1" 2>/dev/null || echo 0
+    else
+        stat -c %Y "$1" 2>/dev/null || echo 0
+    fi
+}
+
+_stat_size() {
+    if _is_macos; then
+        stat -f %z "$1" 2>/dev/null || echo 0
+    else
+        stat -c %s "$1" 2>/dev/null || echo 0
+    fi
+}
+
+_parse_iso_date() {
+    local iso_str="${1%%.*}"
+    if _is_macos; then
+        date -u -j -f "%Y-%m-%dT%H:%M:%S" "$iso_str" +%s 2>/dev/null || echo 0
+    else
+        date -u -d "${iso_str}" +%s 2>/dev/null || echo 0
+    fi
+}
+
 # Fetch usage from Anthropic API
 _get_claude_usage() {
     local token
-    token=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+
+    if _is_macos; then
+        # macOS: read from Keychain
+        token=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+    else
+        # Linux: read from credentials file
+        local cred_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.credentials.json"
+        if [ -f "$cred_file" ]; then
+            token=$(jq -r '.claudeAiOauth.accessToken // empty' "$cred_file" 2>/dev/null)
+        fi
+    fi
 
     if [ -n "$token" ]; then
         curl -s --max-time 2 "https://api.anthropic.com/api/oauth/usage" \
@@ -66,7 +106,7 @@ module_rate_limits() {
 
     # Read from cache if fresh
     if [ -f "$cache_file" ]; then
-        local cache_age=$(($(date +%s) - $(stat -f %m "$cache_file" 2>/dev/null || echo 0)))
+        local cache_age=$(($(date +%s) - $(_stat_mtime "$cache_file")))
         if [ "$cache_age" -lt "${CACHE_MAX_AGE:-60}" ]; then
             usage_data=$(cat "$cache_file")
         fi
@@ -114,7 +154,7 @@ module_rate_limits() {
         local max_history_size=51200
         local current_size=0
         if [ -f "$history_file" ]; then
-            current_size=$(stat -f %z "$history_file" 2>/dev/null || echo 0)
+            current_size=$(_stat_size "$history_file")
         fi
 
         # Cleanup first if file is too large
@@ -142,7 +182,7 @@ module_rate_limits() {
 
     # Parse 5-hour reset time and calculate projection
     if [ -n "$five_hour_reset" ]; then
-        local five_hour_reset_epoch=$(date -u -j -f "%Y-%m-%dT%H:%M:%S" "${five_hour_reset%%.*}" +%s 2>/dev/null || echo 0)
+        local five_hour_reset_epoch=$(_parse_iso_date "$five_hour_reset")
         five_hour_remaining=$((five_hour_reset_epoch - now))
         if [ "$five_hour_remaining" -gt 18000 ]; then
             five_hour_remaining=18000
@@ -174,7 +214,7 @@ module_rate_limits() {
 
     # Parse 7-day reset time and calculate projection
     if [ -n "$seven_day_reset" ]; then
-        local seven_day_reset_epoch=$(date -u -j -f "%Y-%m-%dT%H:%M:%S" "${seven_day_reset%%.*}" +%s 2>/dev/null || echo 0)
+        local seven_day_reset_epoch=$(_parse_iso_date "$seven_day_reset")
         seven_day_remaining=$((seven_day_reset_epoch - now))
         if [ "$seven_day_remaining" -gt 604800 ]; then
             seven_day_remaining=604800
