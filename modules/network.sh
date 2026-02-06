@@ -50,7 +50,13 @@ module_network() {
         local wan_ip=""
 
         if [ -f "$wan_cache" ]; then
-            local cache_age=$(($(date +%s) - $(stat -f %m "$wan_cache" 2>/dev/null || echo 0)))
+            local wan_mtime
+            if [ "$(uname -s)" = "Darwin" ]; then
+                wan_mtime=$(stat -f %m "$wan_cache" 2>/dev/null || echo 0)
+            else
+                wan_mtime=$(stat -c %Y "$wan_cache" 2>/dev/null || echo 0)
+            fi
+            local cache_age=$(($(date +%s) - wan_mtime))
             if [ "$cache_age" -lt 300 ]; then
                 wan_ip=$(cat "$wan_cache")
             fi
