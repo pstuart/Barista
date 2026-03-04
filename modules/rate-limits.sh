@@ -18,10 +18,39 @@
 #   RATE_7D_LABEL           - Label for 7-day (default: 7d)
 # =============================================================================
 
+# Extract OAuth token from macOS Keychain
+# Handles both plain JSON and hex-encoded formats (macOS 15+ / recent Claude Code)
+_get_claude_token() {
+    local raw
+    raw=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null)
+    [ -z "$raw" ] && return
+
+    # Try parsing as plain JSON first (older format)
+    local token
+    token=$(echo "$raw" | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+
+    if [ -z "$token" ]; then
+        # Try hex-decoding (newer macOS/Claude Code returns hex-encoded data)
+        local decoded
+        decoded=$(echo "$raw" | xxd -r -p 2>/dev/null)
+        if [ -n "$decoded" ]; then
+            # Try jq on decoded data
+            token=$(echo "$decoded" | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+
+            if [ -z "$token" ]; then
+                # Fall back to regex extraction (handles binary prefix bytes)
+                token=$(echo "$decoded" | grep -o '"accessToken":"[^"]*"' | head -1 | sed 's/"accessToken":"//;s/"$//')
+            fi
+        fi
+    fi
+
+    echo "$token"
+}
+
 # Fetch usage from Anthropic API
 _get_claude_usage() {
     local token
-    token=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+    token=$(_get_claude_token)
 
     if [ -n "$token" ]; then
         curl -s --max-time 2 "https://api.anthropic.com/api/oauth/usage" \
