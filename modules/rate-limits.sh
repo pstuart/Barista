@@ -16,19 +16,69 @@
 #   RATE_COMPACT            - Compact mode (default: false)
 #   RATE_5H_LABEL           - Label for 5-hour (default: 5h)
 #   RATE_7D_LABEL           - Label for 7-day (default: 7d)
+#   RATE_CACHE_TTL          - Cache TTL in seconds (default: 120)
+#   RATE_BACKOFF_SECONDS    - Backoff duration after 429 (default: 300)
 # =============================================================================
 
-# Fetch usage from Anthropic API
+# Fetch usage from Anthropic API with 429 backoff
 _get_claude_usage() {
+    local backoff_file="$CACHE_DIR/rate_limits_backoff"
+    local backoff_duration="${RATE_BACKOFF_SECONDS:-300}"
+
+    # Check if we're in backoff period from a previous 429
+    if [ -f "$backoff_file" ]; then
+        local backoff_time
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            backoff_time=$(stat -f %m "$backoff_file" 2>/dev/null || echo 0)
+        else
+            backoff_time=$(stat -c %Y "$backoff_file" 2>/dev/null || echo 0)
+        fi
+        local now=$(date +%s)
+        local backoff_age=$((now - backoff_time))
+        if [ "$backoff_age" -lt "$backoff_duration" ]; then
+            log_debug "rate-limits: in backoff period (${backoff_age}s/${backoff_duration}s), skipping API call"
+            return 1
+        else
+            rm -f "$backoff_file" 2>/dev/null
+        fi
+    fi
+
     local token
     token=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
 
-    if [ -n "$token" ]; then
-        curl -s --max-time 2 "https://api.anthropic.com/api/oauth/usage" \
-            -H "Authorization: Bearer $token" \
-            -H "anthropic-beta: oauth-2025-04-20" \
-            -H "Accept: application/json" 2>/dev/null
+    if [ -z "$token" ]; then
+        return 1
     fi
+
+    # Capture both body and HTTP status code
+    local tmp_file="$CACHE_DIR/rate_limits_response"
+    init_cache
+    local http_code
+    http_code=$(curl -s --max-time 5 -o "$tmp_file" -w "%{http_code}" \
+        "https://api.anthropic.com/api/oauth/usage" \
+        -H "Authorization: Bearer $token" \
+        -H "anthropic-beta: oauth-2025-04-20" \
+        -H "Accept: application/json" 2>/dev/null)
+
+    case "$http_code" in
+        200)
+            cat "$tmp_file" 2>/dev/null
+            rm -f "$tmp_file" 2>/dev/null
+            return 0
+            ;;
+        429)
+            log_debug "rate-limits: received 429, backing off for ${backoff_duration}s"
+            init_cache
+            echo "429" > "$backoff_file" 2>/dev/null
+            rm -f "$tmp_file" 2>/dev/null
+            return 1
+            ;;
+        *)
+            log_debug "rate-limits: API returned HTTP $http_code"
+            rm -f "$tmp_file" 2>/dev/null
+            return 1
+            ;;
+    esac
 }
 
 # Get projection status indicator
@@ -59,25 +109,24 @@ module_rate_limits() {
     local medium_thresh="${RATE_MEDIUM_THRESHOLD:-75}"
     local high_thresh="${RATE_HIGH_THRESHOLD:-95}"
 
-    local cache_file="/tmp/.claude_usage_cache"
+    local cache_key="rate_limits_usage"
+    local cache_ttl="${RATE_CACHE_TTL:-120}"
     local history_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.usage_history"
     local usage_data=""
     local fresh_fetch=false
 
-    # Read from cache if fresh
-    if [ -f "$cache_file" ]; then
-        local cache_age=$(($(date +%s) - $(stat -f %m "$cache_file" 2>/dev/null || echo 0)))
-        if [ "$cache_age" -lt "${CACHE_MAX_AGE:-60}" ]; then
-            usage_data=$(cat "$cache_file")
-        fi
-    fi
+    # Read from shared cache if fresh
+    usage_data=$(cache_get "$cache_key" "$cache_ttl")
 
-    # Fetch fresh data if needed
+    # Fetch fresh data if cache miss
     if [ -z "$usage_data" ]; then
         usage_data=$(_get_claude_usage)
         if [ -n "$usage_data" ]; then
-            echo "$usage_data" > "$cache_file" 2>/dev/null
+            cache_set "$cache_key" "$usage_data"
             fresh_fetch=true
+        else
+            # API failed (429/error/timeout) — serve stale cache if available
+            usage_data=$(cache_get "$cache_key" 86400)
         fi
     fi
 

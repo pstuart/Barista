@@ -285,6 +285,8 @@ do_update() {
 # =============================================================================
 # Format: "module_name:default_enabled:category"
 declare -a CORE_MODULES=(
+    "version:true:core"
+    "update:true:core"
     "directory:true:core"
     "context:true:core"
     "git:true:core"
@@ -1825,6 +1827,11 @@ do_install() {
         exit 1
     }
     chmod +x "$BARISTA_DIR/barista.sh"
+
+    # Copy VERSION file for version/update modules
+    if [ -f "$SCRIPT_DIR/VERSION" ]; then
+        cp "$SCRIPT_DIR/VERSION" "$BARISTA_DIR/"
+    fi
 
     mkdir -p "$BARISTA_DIR/modules"
     cp "$SCRIPT_DIR/modules/"*.sh "$BARISTA_DIR/modules/" || {
