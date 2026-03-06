@@ -20,7 +20,36 @@
 #   RATE_BACKOFF_SECONDS    - Backoff duration after 429 (default: 300)
 # =============================================================================
 
-# Fetch usage from Anthropic API with 429 backoff
+# Extract OAuth token from macOS Keychain
+# Handles both plain JSON and hex-encoded formats (macOS 15+ / recent Claude Code)
+_get_claude_token() {
+    local raw
+    raw=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null)
+    [ -z "$raw" ] && return
+
+    # Try parsing as plain JSON first (older format)
+    local token
+    token=$(echo "$raw" | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+
+    if [ -z "$token" ]; then
+        # Try hex-decoding (newer macOS/Claude Code returns hex-encoded data)
+        local decoded
+        decoded=$(echo "$raw" | xxd -r -p 2>/dev/null)
+        if [ -n "$decoded" ]; then
+            # Try jq on decoded data
+            token=$(echo "$decoded" | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+
+            if [ -z "$token" ]; then
+                # Fall back to regex extraction (handles binary prefix bytes)
+                token=$(echo "$decoded" | grep -o '"accessToken":"[^"]*"' | head -1 | sed 's/"accessToken":"//;s/"$//')
+            fi
+        fi
+    fi
+
+    echo "$token"
+}
+
+# Fetch usage from Anthropic API
 _get_claude_usage() {
     local backoff_file="$CACHE_DIR/rate_limits_backoff"
     local backoff_duration="${RATE_BACKOFF_SECONDS:-300}"
@@ -44,7 +73,7 @@ _get_claude_usage() {
     fi
 
     local token
-    token=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+    token=$(_get_claude_token)
 
     if [ -z "$token" ]; then
         return 1
