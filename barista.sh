@@ -51,6 +51,8 @@ MODULE_NODE="false"
 MODULE_PROCESSES="false"
 MODULE_WEATHER="false"
 MODULE_TIMEZONE="false"
+MODULE_VERSION="true"
+MODULE_UPDATE="true"
 
 # Display defaults
 SEPARATOR=" | "
@@ -165,6 +167,8 @@ get_module_function() {
         processes)    echo "module_processes" ;;
         weather)      echo "module_weather" ;;
         timezone)     echo "module_timezone" ;;
+        version)      echo "module_version" ;;
+        update)       echo "module_update" ;;
         *)            echo "" ;;
     esac
 }
@@ -362,7 +366,7 @@ main() {
     fi
 
     # Default module order if not specified
-    local DEFAULT_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
+    local DEFAULT_ORDER="version,update,directory,context,git,project,model,cost,rate-limits,time,battery"
 
     # Use custom order if specified, otherwise use default
     local module_order="${MODULE_ORDER:-$DEFAULT_ORDER}"
