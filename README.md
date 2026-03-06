@@ -5,7 +5,7 @@
 A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that brews real-time development information including context usage, rate limits, costs, and more.
 
 ![Barista](https://img.shields.io/badge/Barista-Claude_Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.5.0-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.6.1-green?style=for-the-badge)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
@@ -13,7 +13,18 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
   <img src="demo.gif" alt="Barista Demo" width="800">
 </p>
 
-## What's New in v1.5.0 🆕
+## What's New in v1.6.1 🆕
+
+- **Hex-Encoded Keychain Fix** - Handles macOS 15+ and recent Claude Code versions that store OAuth credentials as hex-encoded data in the Keychain (community contribution by @gcko)
+- Progressive fallback: tries plain JSON, then hex-decoding via `xxd`, then regex extraction
+
+### v1.6.0
+
+- **Rate Limit 429 Backoff** - Automatically backs off API calls after receiving 429 responses
+- **Version Display** - Shows current Barista version in installer and statusline
+- **Update Checker** - Enhanced update checking from GitHub releases
+
+### v1.5.0
 
 - **Smart Terminal Layout** - New `LAYOUT_MODE` setting with intelligent line wrapping
   - `smart` (default) - Wraps at separator boundaries when content exceeds terminal width
