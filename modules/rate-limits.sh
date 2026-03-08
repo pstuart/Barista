@@ -17,7 +17,7 @@
 #   RATE_5H_LABEL           - Label for 5-hour (default: 5h)
 #   RATE_7D_LABEL           - Label for 7-day (default: 7d)
 #   RATE_CACHE_TTL          - Cache TTL in seconds (default: 120)
-#   RATE_BACKOFF_SECONDS    - Backoff duration after 429 (default: 300)
+#   RATE_BACKOFF_SECONDS    - Fallback backoff after 429 if no retry-after header (default: 300)
 # =============================================================================
 
 # Extract OAuth token from macOS Keychain
@@ -49,27 +49,51 @@ _get_claude_token() {
     echo "$token"
 }
 
+# Check if currently in backoff from a 429
+# Returns 0 if in backoff (with remaining seconds on stdout), 1 if not
+_check_backoff() {
+    local backoff_file="$CACHE_DIR/rate_limits_backoff"
+    local default_duration="${RATE_BACKOFF_SECONDS:-300}"
+
+    if [ ! -f "$backoff_file" ]; then
+        return 1
+    fi
+
+    # Read retry-after duration from file (first line), fall back to default
+    local stored_duration
+    stored_duration=$(head -1 "$backoff_file" 2>/dev/null)
+    local duration="${stored_duration:-$default_duration}"
+
+    local backoff_time
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        backoff_time=$(stat -f %m "$backoff_file" 2>/dev/null || echo 0)
+    else
+        backoff_time=$(stat -c %Y "$backoff_file" 2>/dev/null || echo 0)
+    fi
+
+    local now=$(date +%s)
+    local backoff_age=$((now - backoff_time))
+
+    if [ "$backoff_age" -lt "$duration" ]; then
+        local remaining=$((duration - backoff_age))
+        echo "$remaining"
+        return 0
+    else
+        rm -f "$backoff_file" 2>/dev/null
+        return 1
+    fi
+}
+
 # Fetch usage from Anthropic API
 _get_claude_usage() {
     local backoff_file="$CACHE_DIR/rate_limits_backoff"
-    local backoff_duration="${RATE_BACKOFF_SECONDS:-300}"
 
     # Check if we're in backoff period from a previous 429
-    if [ -f "$backoff_file" ]; then
-        local backoff_time
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            backoff_time=$(stat -f %m "$backoff_file" 2>/dev/null || echo 0)
-        else
-            backoff_time=$(stat -c %Y "$backoff_file" 2>/dev/null || echo 0)
-        fi
-        local now=$(date +%s)
-        local backoff_age=$((now - backoff_time))
-        if [ "$backoff_age" -lt "$backoff_duration" ]; then
-            log_debug "rate-limits: in backoff period (${backoff_age}s/${backoff_duration}s), skipping API call"
-            return 1
-        else
-            rm -f "$backoff_file" 2>/dev/null
-        fi
+    local backoff_remaining
+    backoff_remaining=$(_check_backoff)
+    if [ $? -eq 0 ]; then
+        log_debug "rate-limits: in backoff period (${backoff_remaining}s remaining), skipping API call"
+        return 1
     fi
 
     local token
@@ -79,11 +103,12 @@ _get_claude_usage() {
         return 1
     fi
 
-    # Capture both body and HTTP status code
+    # Capture both body and HTTP status code, plus headers for retry-after
     local tmp_file="$CACHE_DIR/rate_limits_response"
+    local tmp_headers="$CACHE_DIR/rate_limits_headers"
     init_cache
     local http_code
-    http_code=$(curl -s --max-time 5 -o "$tmp_file" -w "%{http_code}" \
+    http_code=$(curl -s --max-time 5 -o "$tmp_file" -D "$tmp_headers" -w "%{http_code}" \
         "https://api.anthropic.com/api/oauth/usage" \
         -H "Authorization: Bearer $token" \
         -H "anthropic-beta: oauth-2025-04-20" \
@@ -92,31 +117,41 @@ _get_claude_usage() {
     case "$http_code" in
         200)
             cat "$tmp_file" 2>/dev/null
-            rm -f "$tmp_file" 2>/dev/null
+            rm -f "$tmp_file" "$tmp_headers" 2>/dev/null
             return 0
             ;;
         429)
-            log_debug "rate-limits: received 429, backing off for ${backoff_duration}s"
+            # Parse retry-after header (seconds) from response
+            local retry_after
+            retry_after=$(grep -i '^retry-after:' "$tmp_headers" 2>/dev/null | tr -d '\r' | awk '{print $2}')
+            local backoff_duration="${retry_after:-${RATE_BACKOFF_SECONDS:-300}}"
+            log_debug "rate-limits: received 429, backing off for ${backoff_duration}s (retry-after: ${retry_after:-not set})"
             init_cache
-            echo "429" > "$backoff_file" 2>/dev/null
-            rm -f "$tmp_file" 2>/dev/null
+            echo "$backoff_duration" > "$backoff_file" 2>/dev/null
+            rm -f "$tmp_file" "$tmp_headers" 2>/dev/null
             return 1
             ;;
         *)
             log_debug "rate-limits: API returned HTTP $http_code"
-            rm -f "$tmp_file" 2>/dev/null
+            rm -f "$tmp_file" "$tmp_headers" 2>/dev/null
             return 1
             ;;
     esac
 }
 
-# Get projection status indicator
+# Get projection status indicator (only shown at warning/critical levels)
 _get_projection_status() {
     local projected=$1
     local warn_thresh="${RATE_WARNING_THRESHOLD:-80}"
     local crit_thresh="${RATE_CRITICAL_THRESHOLD:-100}"
 
     if [ "${RATE_SHOW_PROJECTION:-true}" != "true" ]; then
+        echo ""
+        return
+    fi
+
+    # Only show projection indicator when it's warning or critical
+    if [ "$projected" -lt "$warn_thresh" ] 2>/dev/null; then
         echo ""
         return
     fi
@@ -143,6 +178,14 @@ module_rate_limits() {
     local history_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.usage_history"
     local usage_data=""
     local fresh_fetch=false
+    local in_backoff=false
+    local backoff_remaining=0
+
+    # Check if we're in API backoff (429 cooldown)
+    backoff_remaining=$(_check_backoff)
+    if [ $? -eq 0 ]; then
+        in_backoff=true
+    fi
 
     # Read from shared cache if fresh
     usage_data=$(cache_get "$cache_key" "$cache_ttl")
@@ -160,10 +203,24 @@ module_rate_limits() {
     fi
 
     if [ -z "$usage_data" ]; then
-        local result=""
-        [ "$show_5h" = "true" ] && result="${label_5h}:--"
-        [ "$show_7d" = "true" ] && result="${result:+$result }${label_7d}:--"
-        echo "$result"
+        # No data at all - show backoff countdown if applicable
+        if [ "$in_backoff" = "true" ]; then
+            local cooldown_display
+            if [ "$backoff_remaining" -ge 3600 ]; then
+                cooldown_display="$((backoff_remaining / 3600))h$((backoff_remaining % 3600 / 60))m"
+            elif [ "$backoff_remaining" -ge 60 ]; then
+                cooldown_display="$((backoff_remaining / 60))m"
+            else
+                cooldown_display="${backoff_remaining}s"
+            fi
+            local pause_icon=$(get_icon "⏸" "WAIT:")
+            echo "${pause_icon} API cooldown ${cooldown_display}"
+        else
+            local result=""
+            [ "$show_5h" = "true" ] && result="${label_5h}:--"
+            [ "$show_7d" = "true" ] && result="${result:+$result }${label_7d}:--"
+            echo "$result"
+        fi
         return
     fi
 
@@ -297,6 +354,20 @@ module_rate_limits() {
     # Build output
     local result=""
 
+    # Add stale/backoff indicator when showing cached data during API cooldown
+    local stale_marker=""
+    if [ "$in_backoff" = "true" ] && [ "$fresh_fetch" != "true" ]; then
+        local cooldown_display
+        if [ "$backoff_remaining" -ge 3600 ]; then
+            cooldown_display="$((backoff_remaining / 3600))h$((backoff_remaining % 3600 / 60))m"
+        elif [ "$backoff_remaining" -ge 60 ]; then
+            cooldown_display="$((backoff_remaining / 60))m"
+        else
+            cooldown_display="${backoff_remaining}s"
+        fi
+        stale_marker=" $(get_icon '⏸' 'WAIT')${cooldown_display}"
+    fi
+
     if [ "$show_5h" = "true" ]; then
         result="${label_5h}:${five_hour_int}% ${five_hour_usage_ind}${five_hour_status}"
         if [ "$show_time" = "true" ] && [ "$five_hour_remaining" -gt 0 ] 2>/dev/null && ! is_compact "$compact"; then
@@ -311,6 +382,9 @@ module_rate_limits() {
         fi
         result="${result:+$result }${seven_day_part}"
     fi
+
+    # Append backoff indicator at the end
+    result="${result}${stale_marker}"
 
     echo "$result"
 }
