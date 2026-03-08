@@ -374,6 +374,8 @@ get_module_description() {
 
     case "$module" in
         # Core modules
+        version)      icon="$(emoji '☕' '[V]')"; text="Barista version (shown briefly on startup)" ;;
+        update)       icon="$(emoji '⬆️ ' '[U]')"; text="Update checker (daily GitHub check)" ;;
         directory)    icon="$(emoji '📁' '[D]')"; text="Current directory name" ;;
         context)      icon="$(emoji '📊' '[C]')"; text="Context window usage with progress bar" ;;
         git)          icon="$(emoji '🌿' '[G]')"; text="Git branch, status, and file count" ;;
