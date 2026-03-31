@@ -96,8 +96,8 @@ check_remote_version() {
         return 1
     fi
 
-    # Fetch remote VERSION file (timeout 5 seconds)
-    REMOTE_VERSION=$(curl -s --connect-timeout 5 "$GITHUB_RAW_URL/VERSION" 2>/dev/null | tr -d '[:space:]')
+    # Fetch remote VERSION file (timeout 5 seconds, HTTPS only, limited redirects)
+    REMOTE_VERSION=$(curl -s --connect-timeout 5 --max-redirs 3 --proto =https "$GITHUB_RAW_URL/VERSION" 2>/dev/null | tr -d '[:space:]')
 
     if [ -z "$REMOTE_VERSION" ] || [[ ! "$REMOTE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         return 1
@@ -253,11 +253,38 @@ do_update() {
         local tmp_dir=$(mktemp -d)
         local zip_url="https://github.com/$GITHUB_REPO/archive/refs/heads/main.zip"
 
-        if curl -sL "$zip_url" -o "$tmp_dir/barista.zip" 2>/dev/null; then
+        # Validate URL is from expected GitHub origin (prevent open-redirect abuse)
+        case "$zip_url" in
+            https://github.com/*)
+                ;;
+            *)
+                print_error "Refusing to download from unexpected URL: $zip_url"
+                rm -rf "$tmp_dir"
+                return 1
+                ;;
+        esac
+
+        # --max-redirs 3: limit redirect following to prevent redirect chains
+        # --proto =https: only allow HTTPS (no downgrade to HTTP)
+        if curl -sL --max-redirs 3 --proto =https "$zip_url" -o "$tmp_dir/barista.zip" 2>/dev/null; then
+            # Validate the downloaded file is actually a ZIP archive
+            if ! unzip -tq "$tmp_dir/barista.zip" >/dev/null 2>&1; then
+                print_error "Downloaded file is not a valid ZIP archive. Aborting update."
+                rm -rf "$tmp_dir"
+                return 1
+            fi
+
             cd "$tmp_dir"
             unzip -q barista.zip 2>/dev/null
 
             if [ -d "Barista-main" ]; then
+                # Verify essential files exist in the download
+                if [ ! -f "Barista-main/barista.sh" ] || [ ! -f "Barista-main/VERSION" ]; then
+                    print_error "Downloaded archive is missing essential files. Aborting update."
+                    rm -rf "$tmp_dir"
+                    return 1
+                fi
+
                 # Backup current and replace
                 cp -r "$SCRIPT_DIR" "$SCRIPT_DIR.backup.$$"
                 cp -r Barista-main/* "$SCRIPT_DIR/"
@@ -1429,13 +1456,21 @@ validate_config() {
             done
         fi
 
-        # Validate threshold values are numeric
-        for var in CONTEXT_WARNING_THRESHOLD CONTEXT_CRITICAL_THRESHOLD \
+        # Validate threshold values are numeric (no eval — explicit lookups)
+        local _thresh_name _thresh_val
+        for _thresh_name in CONTEXT_WARNING_THRESHOLD CONTEXT_CRITICAL_THRESHOLD \
                    RATE_WARNING_THRESHOLD RATE_CRITICAL_THRESHOLD \
                    BATTERY_LOW_THRESHOLD BATTERY_CRITICAL_THRESHOLD; do
-            eval "val=\${$var:-}"
-            if [ -n "$val" ] && ! echo "$val" | grep -qE '^[0-9]+$'; then
-                echo "Warning: $var should be a number, got: $val"
+            case "$_thresh_name" in
+                CONTEXT_WARNING_THRESHOLD)  _thresh_val="${CONTEXT_WARNING_THRESHOLD:-}" ;;
+                CONTEXT_CRITICAL_THRESHOLD) _thresh_val="${CONTEXT_CRITICAL_THRESHOLD:-}" ;;
+                RATE_WARNING_THRESHOLD)     _thresh_val="${RATE_WARNING_THRESHOLD:-}" ;;
+                RATE_CRITICAL_THRESHOLD)    _thresh_val="${RATE_CRITICAL_THRESHOLD:-}" ;;
+                BATTERY_LOW_THRESHOLD)      _thresh_val="${BATTERY_LOW_THRESHOLD:-}" ;;
+                BATTERY_CRITICAL_THRESHOLD) _thresh_val="${BATTERY_CRITICAL_THRESHOLD:-}" ;;
+            esac
+            if [ -n "$_thresh_val" ] && ! echo "$_thresh_val" | grep -qE '^[0-9]+$'; then
+                echo "Warning: $_thresh_name should be a number, got: $_thresh_val"
             fi
         done
     )
