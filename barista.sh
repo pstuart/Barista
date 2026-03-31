@@ -83,7 +83,7 @@ RIGHT_SIDE_RESERVE=20        # Space reserved on right side of terminal (used by
 # CONFIGURATION LOADING
 # =============================================================================
 
-# Load main config file
+# Load a trusted config file by sourcing it (only for configs we ship or the user owns)
 load_config() {
     local config_path="$1"
     if [ -f "$config_path" ]; then
@@ -94,11 +94,71 @@ load_config() {
     return 1
 }
 
+# Load an untrusted config file safely (project-level .barista.conf)
+# Only allows KEY=VALUE assignments for known configuration variable names.
+# Ignores comments, blank lines, and any line that doesn't match the pattern.
+load_config_safe() {
+    local config_path="$1"
+    [ -f "$config_path" ] || return 1
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Strip leading/trailing whitespace
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+
+        # Skip comments and blank lines
+        case "$line" in
+            ""|\#*) continue ;;
+        esac
+
+        # Only allow KEY="value" or KEY=value where KEY matches known config prefixes
+        # This rejects semicolons, backticks, $(), and other shell metacharacters in values
+        case "$line" in
+            MODULE_*=*|SEPARATOR=*|DISPLAY_MODE=*|COLOR_THEME=*|USE_ICONS=*|\
+            USE_STATUS_INDICATORS=*|STATUS_STYLE=*|STATUS_*=*|\
+            PROGRESS_BAR_*=*|DIRECTORY_*=*|CONTEXT_*=*|GIT_*=*|\
+            PROJECT_*=*|MODEL_*=*|COST_*=*|RATE_*=*|TIME_*=*|\
+            BATTERY_*=*|CPU_*=*|MEMORY_*=*|DISK_*=*|NETWORK_*=*|\
+            UPTIME_*=*|LOAD_*=*|TEMP_*=*|BRIGHTNESS_*=*|PROC_*=*|\
+            DOCKER_*=*|NODE_*=*|WEATHER_*=*|TIMEZONE_*=*|\
+            CACHE_MAX_AGE=*|DEBUG_MODE=*|LAYOUT_MODE=*|\
+            TERMINAL_WIDTH=*|RIGHT_SIDE_RESERVE=*|VERSION_*=*|UPDATE_*=*)
+                # Extract key and value
+                local key="${line%%=*}"
+                local val="${line#*=}"
+
+                # Reject keys with non-alphanumeric/underscore characters
+                case "$key" in
+                    *[!A-Za-z0-9_]*) continue ;;
+                esac
+
+                # Strip optional surrounding quotes (single or double)
+                case "$val" in
+                    \"*\") val="${val#\"}"; val="${val%\"}" ;;
+                    \'*\') val="${val#\'}"; val="${val%\'}" ;;
+                esac
+
+                # Reject values containing shell metacharacters
+                case "$val" in
+                    *\`*|*\$\(*|*\;*|*\|*|*\&*|*\>*|*\<*) continue ;;
+                esac
+
+                # Safe to assign via printf into the variable
+                printf -v "$key" '%s' "$val" 2>/dev/null || true
+                ;;
+            *)
+                # Unrecognized line — skip silently for safety
+                ;;
+        esac
+    done < "$config_path"
+    return 0
+}
+
 # Load configuration in order of precedence:
 # 1. Built-in defaults (above)
-# 2. Script directory config (barista.conf)
-# 3. User config ($CLAUDE_CONFIG_DIR/barista.conf)
-# 4. Per-directory config (.barista.conf in current_dir)
+# 2. Script directory config (barista.conf) — trusted, shipped with Barista
+# 3. User config ($CLAUDE_CONFIG_DIR/barista.conf) — trusted, user-owned
+# 4. Per-directory config (.barista.conf in current_dir) — UNTRUSTED, uses safe parser
 
 load_config "$CONFIG_FILE"
 
@@ -216,16 +276,38 @@ run_module() {
 }
 
 # Check if a module is enabled
+# Uses a static lookup instead of eval to avoid code injection
 is_module_enabled() {
     local module_name="$1"
+    local enabled="false"
 
-    # Convert module name to config variable name
-    # e.g., "rate-limits" -> "MODULE_RATE_LIMITS"
-    local var_name="MODULE_$(echo "$module_name" | tr '[:lower:]-' '[:upper:]_')"
-
-    # Get value using indirect reference
-    local enabled
-    eval "enabled=\${$var_name:-false}"
+    case "$module_name" in
+        directory)    enabled="${MODULE_DIRECTORY:-false}" ;;
+        context)      enabled="${MODULE_CONTEXT:-false}" ;;
+        git)          enabled="${MODULE_GIT:-false}" ;;
+        project)      enabled="${MODULE_PROJECT:-false}" ;;
+        model)        enabled="${MODULE_MODEL:-false}" ;;
+        cost)         enabled="${MODULE_COST:-false}" ;;
+        rate-limits)  enabled="${MODULE_RATE_LIMITS:-false}" ;;
+        time)         enabled="${MODULE_TIME:-false}" ;;
+        battery)      enabled="${MODULE_BATTERY:-false}" ;;
+        cpu)          enabled="${MODULE_CPU:-false}" ;;
+        memory)       enabled="${MODULE_MEMORY:-false}" ;;
+        disk)         enabled="${MODULE_DISK:-false}" ;;
+        network)      enabled="${MODULE_NETWORK:-false}" ;;
+        uptime)       enabled="${MODULE_UPTIME:-false}" ;;
+        load)         enabled="${MODULE_LOAD:-false}" ;;
+        temperature)  enabled="${MODULE_TEMPERATURE:-false}" ;;
+        brightness)   enabled="${MODULE_BRIGHTNESS:-false}" ;;
+        docker)       enabled="${MODULE_DOCKER:-false}" ;;
+        node)         enabled="${MODULE_NODE:-false}" ;;
+        processes)    enabled="${MODULE_PROCESSES:-false}" ;;
+        weather)      enabled="${MODULE_WEATHER:-false}" ;;
+        timezone)     enabled="${MODULE_TIMEZONE:-false}" ;;
+        version)      enabled="${MODULE_VERSION:-false}" ;;
+        update)       enabled="${MODULE_UPDATE:-false}" ;;
+        *)            enabled="false" ;;
+    esac
 
     [ "$enabled" = "true" ]
 }
@@ -345,11 +427,12 @@ main() {
 
     # Load per-directory config if it exists
     # This allows project-specific statusline customization
+    # Uses safe parser — project configs are untrusted and must not be sourced
     if [ -n "$current_dir" ] && [ -d "$current_dir" ]; then
         local dir_config="$current_dir/.barista.conf"
         if [ -f "$dir_config" ]; then
-            log_debug "Loading per-directory config: $dir_config"
-            load_config "$dir_config"
+            log_debug "Loading per-directory config (safe parser): $dir_config"
+            load_config_safe "$dir_config"
         fi
     fi
 
