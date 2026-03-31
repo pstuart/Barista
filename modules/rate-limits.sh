@@ -104,15 +104,21 @@ _get_claude_usage() {
     fi
 
     # Capture both body and HTTP status code, plus headers for retry-after
+    # Token is passed via a temporary config file (mode 0600) to keep it out of
+    # the process table (`ps` output) and shell history.
     local tmp_file="$CACHE_DIR/rate_limits_response"
     local tmp_headers="$CACHE_DIR/rate_limits_headers"
+    local tmp_curlcfg="$CACHE_DIR/rate_limits_curlcfg"
     init_cache
+    printf 'header = "Authorization: Bearer %s"\n' "$token" > "$tmp_curlcfg"
+    chmod 600 "$tmp_curlcfg" 2>/dev/null
     local http_code
     http_code=$(curl -s --max-time 5 -o "$tmp_file" -D "$tmp_headers" -w "%{http_code}" \
+        --config "$tmp_curlcfg" \
         "https://api.anthropic.com/api/oauth/usage" \
-        -H "Authorization: Bearer $token" \
         -H "anthropic-beta: oauth-2025-04-20" \
         -H "Accept: application/json" 2>/dev/null)
+    rm -f "$tmp_curlcfg" 2>/dev/null
 
     case "$http_code" in
         200)

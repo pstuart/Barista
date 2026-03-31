@@ -53,8 +53,14 @@ module_network() {
     fi
 
     # Get WAN IP (slow - cached)
+    # NETWORK_SHOW_WAN defaults to "false" (opt-in) to avoid leaking the
+    # public IP to third-party lookup services without explicit consent.
     if [ "$show_wan" = "true" ] && ! is_compact "$compact"; then
-        local wan_cache="/tmp/.claude_wan_ip"
+        # Cache in user-private directory instead of world-readable /tmp
+        local wan_cache_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/barista-cache"
+        mkdir -p "$wan_cache_dir" 2>/dev/null
+        chmod 700 "$wan_cache_dir" 2>/dev/null
+        local wan_cache="$wan_cache_dir/wan_ip"
         local wan_ip=""
 
         if [ -f "$wan_cache" ]; then
@@ -65,9 +71,14 @@ module_network() {
         fi
 
         if [ -z "$wan_ip" ]; then
-            wan_ip=$(curl -s --max-time 2 ifconfig.me 2>/dev/null || curl -s --max-time 2 icanhazip.com 2>/dev/null)
-            if [ -n "$wan_ip" ]; then
-                echo "$wan_ip" > "$wan_cache"
+            wan_ip=$(curl -s --max-time 2 --proto =https https://ifconfig.me 2>/dev/null || \
+                     curl -s --max-time 2 --proto =https https://icanhazip.com 2>/dev/null)
+            # Validate response looks like an IP address (v4 or v6) before caching
+            if echo "$wan_ip" | grep -qE '^[0-9a-fA-F.:]+$'; then
+                printf '%s' "$wan_ip" > "$wan_cache"
+                chmod 600 "$wan_cache" 2>/dev/null
+            else
+                wan_ip=""
             fi
         fi
 
