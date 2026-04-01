@@ -5,7 +5,7 @@
 A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that brews real-time development information including context usage, rate limits, costs, and more.
 
 ![Barista](https://img.shields.io/badge/Barista-Claude_Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.6.1-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.7.0-green?style=for-the-badge)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
@@ -13,7 +13,14 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
   <img src="demo.gif" alt="Barista Demo" width="800">
 </p>
 
-## What's New in v1.6.1 🆕
+## What's New in v1.7.0 🆕
+
+- **Smart 429 Backoff** - Respects `Retry-After` headers for precise backoff timing instead of fixed delays
+- **Unknown Module Fix** - Installer no longer errors on unrecognized module names in config
+- **Privacy Hardening** - WAN IP lookup is now opt-in and redacted by default
+- **Security Hardening** - Config injection, eval usage, token exposure, and download validation improvements
+
+### v1.6.1
 
 - **Hex-Encoded Keychain Fix** - Handles macOS 15+ and recent Claude Code versions that store OAuth credentials as hex-encoded data in the Keychain (community contribution by @gcko)
 - Progressive fallback: tries plain JSON, then hex-decoding via `xxd`, then regex extraction
