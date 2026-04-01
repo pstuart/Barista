@@ -15,6 +15,14 @@ _check_barista_update() {
     local cache_key="update_check"
     local check_interval="${UPDATE_CHECK_INTERVAL:-86400}"
 
+    # Validate repo format (owner/name) to prevent URL injection
+    case "$repo" in
+        *[!A-Za-z0-9_./-]*)
+            log_debug "update: rejected unsafe UPDATE_REPO value"
+            return
+            ;;
+    esac
+
     # Check cache first (default: 24 hours)
     local cached
     cached=$(cache_get "$cache_key" "$check_interval")
@@ -37,7 +45,7 @@ _check_barista_update() {
 
     # Fetch latest release tag from GitHub API (unauthenticated, low rate limit)
     local response
-    response=$(curl -s --max-time 5 -w "\n%{http_code}" \
+    response=$(curl -s --max-time 5 --proto =https --max-redirs 3 -w "\n%{http_code}" \
         "https://api.github.com/repos/${repo}/releases/latest" \
         -H "Accept: application/vnd.github+json" 2>/dev/null)
 

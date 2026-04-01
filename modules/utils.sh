@@ -25,6 +25,12 @@ init_cache() {
 cache_get() {
     local key="$1"
     local max_age="${2:-${CACHE_MAX_AGE:-60}}"
+
+    # Reject keys with path traversal
+    case "$key" in
+        *..* | */*) return 1 ;;
+    esac
+
     local cache_file="$CACHE_DIR/${key}"
 
     if [ ! -f "$cache_file" ]; then
@@ -62,6 +68,11 @@ cache_set() {
     local key="$1"
     local value="$2"
 
+    # Reject keys with path traversal
+    case "$key" in
+        *..* | */*) return 1 ;;
+    esac
+
     init_cache
 
     local cache_file="$CACHE_DIR/${key}"
@@ -73,7 +84,16 @@ cache_set() {
 cache_clear() {
     local key="$1"
 
+    # Guard against empty or root paths
+    if [ -z "$CACHE_DIR" ] || [ "$CACHE_DIR" = "/" ]; then
+        return 1
+    fi
+
     if [ -n "$key" ]; then
+        # Reject key values with path traversal
+        case "$key" in
+            *..* | */*) return 1 ;;
+        esac
         rm -f "$CACHE_DIR/${key}" 2>/dev/null
     else
         rm -rf "$CACHE_DIR" 2>/dev/null

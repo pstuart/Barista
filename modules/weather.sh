@@ -18,8 +18,13 @@ module_weather() {
     local compact="${WEATHER_COMPACT:-false}"
     local cache_ttl="${WEATHER_CACHE_TTL:-1800}"
 
-    local cache_file="/tmp/.claude_weather_cache"
     local weather_data=""
+
+    # Use private cache directory instead of world-readable /tmp
+    local weather_cache_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/barista-cache"
+    mkdir -p "$weather_cache_dir" 2>/dev/null
+    chmod 700 "$weather_cache_dir" 2>/dev/null
+    local cache_file="$weather_cache_dir/weather"
 
     # Check cache
     if [ -f "$cache_file" ]; then
@@ -31,10 +36,18 @@ module_weather() {
 
     # Fetch fresh data if needed
     if [ -z "$weather_data" ]; then
+        # Sanitize location: reject shell metacharacters and URL-unsafe sequences
+        case "$location" in
+            *\`*|*\$\(*|*\;*|*\|*|*\&*|*\>*|*\<*|*\'*|*\"*|*\\*)
+                log_debug "weather: rejected unsafe WEATHER_LOCATION value"
+                return
+                ;;
+        esac
         local url="https://wttr.in/${location}?format=%c%t&${units}"
-        weather_data=$(curl -s --max-time 3 "$url" 2>/dev/null)
+        weather_data=$(curl -s --max-time 3 --proto =https --max-redirs 3 "$url" 2>/dev/null)
         if [ -n "$weather_data" ] && [ "$weather_data" != "Unknown location" ]; then
-            echo "$weather_data" > "$cache_file" 2>/dev/null
+            printf '%s' "$weather_data" > "$cache_file" 2>/dev/null
+            chmod 600 "$cache_file" 2>/dev/null
         else
             weather_data=""
         fi

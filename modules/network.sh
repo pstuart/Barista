@@ -13,7 +13,7 @@
 #
 # Privacy note: When NETWORK_SHOW_WAN is enabled, this module contacts
 # external services (ifconfig.me / icanhazip.com) to determine your
-# public IP address. Results are cached for 5 minutes at /tmp/.claude_wan_ip.
+# public IP address. Results are cached for 5 minutes in barista-cache/wan_ip.
 # =============================================================================
 
 module_network() {
