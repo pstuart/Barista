@@ -51,6 +51,7 @@ MODULE_NODE="false"
 MODULE_PROCESSES="false"
 MODULE_WEATHER="false"
 MODULE_TIMEZONE="false"
+MODULE_SANDBOX="true"
 MODULE_VERSION="true"
 MODULE_UPDATE="true"
 
@@ -120,7 +121,7 @@ load_config_safe() {
             PROJECT_*=*|MODEL_*=*|COST_*=*|RATE_*=*|TIME_*=*|\
             BATTERY_*=*|CPU_*=*|MEMORY_*=*|DISK_*=*|NETWORK_*=*|\
             UPTIME_*=*|LOAD_*=*|TEMP_*=*|BRIGHTNESS_*=*|PROC_*=*|\
-            DOCKER_*=*|NODE_*=*|WEATHER_*=*|TIMEZONE_*=*|\
+            DOCKER_*=*|NODE_*=*|WEATHER_*=*|TIMEZONE_*=*|SANDBOX_*=*|\
             CACHE_MAX_AGE=*|DEBUG_MODE=*|LAYOUT_MODE=*|\
             TERMINAL_WIDTH=*|RIGHT_SIDE_RESERVE=*|VERSION_*=*|UPDATE_*=*)
                 # Extract key and value
@@ -227,6 +228,7 @@ get_module_function() {
         processes)    echo "module_processes" ;;
         weather)      echo "module_weather" ;;
         timezone)     echo "module_timezone" ;;
+        sandbox)      echo "module_sandbox" ;;
         version)      echo "module_version" ;;
         update)       echo "module_update" ;;
         *)            echo "" ;;
@@ -304,6 +306,7 @@ is_module_enabled() {
         processes)    enabled="${MODULE_PROCESSES:-false}" ;;
         weather)      enabled="${MODULE_WEATHER:-false}" ;;
         timezone)     enabled="${MODULE_TIMEZONE:-false}" ;;
+        sandbox)      enabled="${MODULE_SANDBOX:-false}" ;;
         version)      enabled="${MODULE_VERSION:-false}" ;;
         update)       enabled="${MODULE_UPDATE:-false}" ;;
         *)            enabled="false" ;;
@@ -449,7 +452,7 @@ main() {
     fi
 
     # Default module order if not specified
-    local DEFAULT_ORDER="version,update,directory,context,git,project,model,cost,rate-limits,time,battery"
+    local DEFAULT_ORDER="sandbox,version,update,directory,context,git,project,model,cost,rate-limits,time,battery"
 
     # Use custom order if specified, otherwise use default
     local module_order="${MODULE_ORDER:-$DEFAULT_ORDER}"
