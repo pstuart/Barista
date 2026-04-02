@@ -312,6 +312,7 @@ do_update() {
 # =============================================================================
 # Format: "module_name:default_enabled:category"
 declare -a CORE_MODULES=(
+    "sandbox:true:core"
     "version:true:core"
     "update:true:core"
     "directory:true:core"
@@ -401,6 +402,7 @@ get_module_description() {
 
     case "$module" in
         # Core modules
+        sandbox)      icon="$(emoji '🔒' '[S]')"; text="Lock icon when in macOS app sandbox" ;;
         version)      icon="$(emoji '☕' '[V]')"; text="Barista version (shown briefly on startup)" ;;
         update)       icon="$(emoji '⬆️ ' '[U]')"; text="Update checker (daily GitHub check)" ;;
         directory)    icon="$(emoji '📁' '[D]')"; text="Current directory name" ;;
@@ -454,6 +456,13 @@ get_module_sample() {
     local bar="${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}"
 
     case "$module" in
+        sandbox)
+            if [ "$USE_EMOJI" = "true" ]; then
+                echo "🔒"
+            else
+                echo "SANDBOX"
+            fi
+            ;;
         directory)
             if [ "$USE_EMOJI" = "true" ]; then
                 echo "📁 myproject"
