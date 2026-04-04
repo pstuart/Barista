@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # =============================================================================
 # Rate Limits Module - Shows 5-hour and 7-day usage with projections
 # Requires macOS Keychain with Claude Code OAuth token
