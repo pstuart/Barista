@@ -47,9 +47,11 @@ module_brightness() {
         fi
     else
         # Linux: try various methods
-        if [ -f /sys/class/backlight/*/brightness ]; then
-            local curr=$(cat /sys/class/backlight/*/brightness 2>/dev/null | head -1)
-            local max=$(cat /sys/class/backlight/*/max_brightness 2>/dev/null | head -1)
+        if ls /sys/class/backlight/*/brightness >/dev/null 2>&1; then
+            local curr
+            curr=$(cat /sys/class/backlight/*/brightness 2>/dev/null | head -1)
+            local max
+            max=$(cat /sys/class/backlight/*/max_brightness 2>/dev/null | head -1)
             if [ -n "$curr" ] && [ -n "$max" ] && [ "$max" -gt 0 ]; then
                 brightness=$((curr * 100 / max))
             fi
