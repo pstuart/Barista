@@ -228,7 +228,7 @@ do_update() {
     # Check if we're in a git repo
     if [ -d "$SCRIPT_DIR/.git" ]; then
         print_info "Pulling latest changes from GitHub..."
-        cd "$SCRIPT_DIR"
+        cd "$SCRIPT_DIR" || { print_error "Could not cd to $SCRIPT_DIR"; return 1; }
 
         # Stash any local changes
         git stash -q 2>/dev/null
@@ -274,7 +274,7 @@ do_update() {
                 return 1
             fi
 
-            cd "$tmp_dir"
+            cd "$tmp_dir" || { print_error "Could not cd to temp dir"; rm -rf "$tmp_dir"; return 1; }
             unzip -q barista.zip 2>/dev/null
 
             if [ -d "Barista-main" ]; then
