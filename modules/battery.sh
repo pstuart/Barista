@@ -24,18 +24,21 @@ module_battery() {
     local show_pct="${BATTERY_SHOW_PERCENTAGE:-true}"
 
     # Get battery info
-    local batt_info=$(pmset -g batt 2>/dev/null)
+    local batt_info
+    batt_info=$(pmset -g batt 2>/dev/null)
     if [ -z "$batt_info" ]; then
         return
     fi
 
-    local battery=$(echo "$batt_info" | grep -o '[0-9]*%' | head -1)
+    local battery
+    battery=$(echo "$batt_info" | grep -o '[0-9]*%' | head -1)
     if [ -z "$battery" ]; then
         return
     fi
 
     # Extract percentage number
-    local pct_num=$(echo "$battery" | tr -d '%')
+    local pct_num
+    pct_num=$(echo "$battery" | tr -d '%')
 
     # Determine icon based on level
     local display_icon="$icon"
