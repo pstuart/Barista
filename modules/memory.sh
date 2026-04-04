@@ -24,12 +24,15 @@ module_memory() {
     local mem_total=""
 
     if [ "$(uname)" = "Darwin" ]; then
-        # macOS: use vm_stat
-        local pages_free=$(vm_stat 2>/dev/null | grep "Pages free" | awk '{print $3}' | tr -d '.')
-        local pages_active=$(vm_stat 2>/dev/null | grep "Pages active" | awk '{print $3}' | tr -d '.')
-        local pages_inactive=$(vm_stat 2>/dev/null | grep "Pages inactive" | awk '{print $3}' | tr -d '.')
-        local pages_speculative=$(vm_stat 2>/dev/null | grep "Pages speculative" | awk '{print $3}' | tr -d '.')
-        local pages_wired=$(vm_stat 2>/dev/null | grep "Pages wired down" | awk '{print $4}' | tr -d '.')
+        # macOS: call vm_stat once and parse all values from the cached output
+        local vm_output
+        vm_output=$(vm_stat 2>/dev/null)
+        local pages_free
+        pages_free=$(echo "$vm_output" | grep "Pages free" | awk '{print $3}' | tr -d '.')
+        local pages_active
+        pages_active=$(echo "$vm_output" | grep "Pages active" | awk '{print $3}' | tr -d '.')
+        local pages_wired
+        pages_wired=$(echo "$vm_output" | grep "Pages wired down" | awk '{print $4}' | tr -d '.')
 
         if [ -n "$pages_free" ] && [ -n "$pages_active" ]; then
             local page_size=4096
