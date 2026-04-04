@@ -160,7 +160,7 @@ prompt_update() {
     echo "  View changes: https://github.com/$GITHUB_REPO/releases"
     echo ""
 
-    read -p "Would you like to update now? [Y/n]: " update_choice
+    read -rp "Would you like to update now? [Y/n]: " update_choice
 
     if [ "$update_choice" != "n" ] && [ "$update_choice" != "N" ]; then
         do_update
@@ -175,7 +175,7 @@ interactive_update_check() {
     local local_ver=$(get_local_version)
 
     echo ""
-    read -p "Check for updates? [Y/n]: " check_choice
+    read -rp "Check for updates? [Y/n]: " check_choice
 
     if [ "$check_choice" = "n" ] || [ "$check_choice" = "N" ]; then
         echo ""
@@ -204,7 +204,7 @@ interactive_update_check() {
         echo "  View changes: https://github.com/$GITHUB_REPO/releases"
         echo ""
 
-        read -p "Update now before installing? [Y/n]: " update_choice
+        read -rp "Update now before installing? [Y/n]: " update_choice
 
         if [ "$update_choice" != "n" ] && [ "$update_choice" != "N" ]; then
             do_update
@@ -942,7 +942,7 @@ interactive_module_ordering() {
     done
     echo ""
 
-    read -p "Would you like to reorder the modules? [y/N]: " reorder
+    read -rp "Would you like to reorder the modules? [y/N]: " reorder
     if [ "$reorder" != "y" ] && [ "$reorder" != "Y" ]; then
         return
     fi
@@ -953,7 +953,7 @@ interactive_module_ordering() {
     echo "Or enter 'reverse' to reverse the order"
     echo ""
 
-    read -p "New order: " order_input
+    read -rp "New order: " order_input
 
     if [ -z "$order_input" ]; then
         print_info "Keeping current order"
@@ -1648,7 +1648,7 @@ do_uninstall() {
         echo "  2) Just remove current statusline (no restore)"
         echo "  3) Cancel"
         echo ""
-        read -p "Choose an option [1-3]: " choice
+        read -rp "Choose an option [1-3]: " choice
 
         case $choice in
             1)
@@ -1658,7 +1658,7 @@ do_uninstall() {
                 restore_from_backup
 
                 echo ""
-                read -p "Remove backup files? [y/N]: " remove_backup
+                read -rp "Remove backup files? [y/N]: " remove_backup
                 if [ "$remove_backup" = "y" ] || [ "$remove_backup" = "Y" ]; then
                     rm -rf "$BACKUP_DIR" && print_success "Removed backup directory"
                 fi
@@ -1762,7 +1762,7 @@ do_install() {
         echo ""
 
         if [ "$mode" = "interactive" ]; then
-            read -p "Continue with installation? [y/N]: " confirm
+            read -rp "Continue with installation? [y/N]: " confirm
             if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
                 print_info "Installation cancelled"
                 exit 0
@@ -1841,7 +1841,7 @@ do_install() {
     echo ""
 
     if [ "$mode" = "interactive" ]; then
-        read -p "Proceed with installation? [Y/n]: " final_confirm
+        read -rp "Proceed with installation? [Y/n]: " final_confirm
         if [ "$final_confirm" = "n" ] || [ "$final_confirm" = "N" ]; then
             print_info "Installation cancelled"
             exit 0
