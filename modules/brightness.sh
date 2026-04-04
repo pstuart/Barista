@@ -72,7 +72,8 @@ module_brightness() {
     fi
 
     if [ "$show_bar" = "true" ]; then
-        local bar=$(render_progress_bar "$brightness_int" 100 "$bar_width")
+        local bar
+        bar=$(progress_bar "$brightness_int" "$bar_width")
         result="$result $bar"
     fi
 
