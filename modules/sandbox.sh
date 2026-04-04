@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # ABOUTME: Sandbox indicator module - shows a lock icon when running in an macOS app sandbox
 # ABOUTME: Detects sandbox via the APP_SANDBOX_CONTAINER_ID environment variable
 
