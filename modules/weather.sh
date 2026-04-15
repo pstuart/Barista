@@ -29,7 +29,7 @@ module_weather() {
 
     # Check cache
     if [ -f "$cache_file" ]; then
-        local cache_age=$(($(date +%s) - $(stat -f %m "$cache_file" 2>/dev/null || echo 0)))
+        local cache_age=$(( $(date +%s) - $(_file_mtime "$cache_file") ))
         if [ "$cache_age" -lt "$cache_ttl" ]; then
             weather_data=$(cat "$cache_file")
         fi
