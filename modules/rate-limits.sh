@@ -66,13 +66,10 @@ _check_backoff() {
     local duration="${stored_duration:-$default_duration}"
 
     local backoff_time
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        backoff_time=$(stat -f %m "$backoff_file" 2>/dev/null || echo 0)
-    else
-        backoff_time=$(stat -c %Y "$backoff_file" 2>/dev/null || echo 0)
-    fi
+    backoff_time=$(_file_mtime "$backoff_file")
 
-    local now=$(date +%s)
+    local now
+    now=$(date +%s)
     local backoff_age=$((now - backoff_time))
 
     if [ "$backoff_age" -lt "$duration" ]; then
@@ -256,7 +253,7 @@ module_rate_limits() {
         local max_history_size=51200
         local current_size=0
         if [ -f "$history_file" ]; then
-            current_size=$(stat -f %z "$history_file" 2>/dev/null || echo 0)
+            current_size=$(_file_size "$history_file")
         fi
 
         # Cleanup first if file is too large

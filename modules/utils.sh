@@ -7,6 +7,35 @@
 # =============================================================================
 
 # =============================================================================
+# PORTABLE FILE STAT HELPERS
+# =============================================================================
+# Call `/usr/bin/stat` with an absolute path on Darwin so GNU coreutils
+# (brew `gnubin` in PATH) cannot shadow BSD stat — GNU's `-f` means
+# `--file-system`, which returns garbage and silently breaks cache age /
+# rate-limit backoff / history-size math.
+# Fall back to GNU `stat -c` on Linux and to `0` on any failure.
+
+_file_mtime() {
+    local f="$1"
+    [ -e "$f" ] || { echo 0; return; }
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        /usr/bin/stat -f %m "$f" 2>/dev/null || echo 0
+    else
+        stat -c %Y "$f" 2>/dev/null || echo 0
+    fi
+}
+
+_file_size() {
+    local f="$1"
+    [ -e "$f" ] || { echo 0; return; }
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        /usr/bin/stat -f %z "$f" 2>/dev/null || echo 0
+    else
+        stat -c %s "$f" 2>/dev/null || echo 0
+    fi
+}
+
+# =============================================================================
 # CACHE SYSTEM
 # =============================================================================
 # Simple file-based caching for expensive operations (weather, network, etc.)
@@ -40,17 +69,14 @@ cache_get() {
 
     # Check age
     local file_time
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        file_time=$(stat -f %m "$cache_file" 2>/dev/null)
-    else
-        file_time=$(stat -c %Y "$cache_file" 2>/dev/null)
-    fi
+    file_time=$(_file_mtime "$cache_file")
 
-    if [ -z "$file_time" ]; then
+    if [ "$file_time" -eq 0 ]; then
         return 1
     fi
 
-    local current_time=$(date +%s)
+    local current_time
+    current_time=$(date +%s)
     local age=$((current_time - file_time))
 
     if [ "$age" -gt "$max_age" ] 2>/dev/null; then

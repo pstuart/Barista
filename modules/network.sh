@@ -65,7 +65,7 @@ module_network() {
         local wan_ip=""
 
         if [ -f "$wan_cache" ]; then
-            local cache_age=$(($(date +%s) - $(stat -f %m "$wan_cache" 2>/dev/null || echo 0)))
+            local cache_age=$(( $(date +%s) - $(_file_mtime "$wan_cache") ))
             if [ "$cache_age" -lt 300 ]; then
                 wan_ip=$(cat "$wan_cache")
             fi
