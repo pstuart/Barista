@@ -21,9 +21,23 @@
 #   RATE_BACKOFF_SECONDS    - Fallback backoff after 429 if no retry-after header (default: 300)
 # =============================================================================
 
-# Extract OAuth token from macOS Keychain
+# Extract OAuth token from (in order):
+#   1. ~/.claude/.credentials.json — used on Windows and some Linux setups
+#   2. macOS Keychain via `security` — used on macOS
 # Handles both plain JSON and hex-encoded formats (macOS 15+ / recent Claude Code)
 _get_claude_token() {
+    local creds_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.credentials.json"
+    if [ -f "$creds_file" ]; then
+        local file_token
+        file_token=$(jq -r '.claudeAiOauth.accessToken // empty' "$creds_file" 2>/dev/null)
+        if [ -n "$file_token" ]; then
+            echo "$file_token"
+            return
+        fi
+    fi
+
+    command -v security >/dev/null 2>&1 || return
+
     local raw
     raw=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null)
     [ -z "$raw" ] && return
@@ -110,8 +124,23 @@ _get_claude_usage() {
     init_cache
     printf 'header = "Authorization: Bearer %s"\n' "$token" > "$tmp_curlcfg"
     chmod 600 "$tmp_curlcfg" 2>/dev/null
+    # On Git Bash / MSYS, some mingw curl builds (notably 8.8 shipped with
+    # recent Git for Windows) hit libcurl error 43 on this endpoint due to a
+    # schannel TLS-renegotiation bug. Windows' system curl.exe works fine.
+    local curl_bin="curl"
+    case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*)
+            local sys_curl=""
+            if command -v cygpath >/dev/null 2>&1 && [ -n "$SYSTEMROOT" ]; then
+                sys_curl="$(cygpath -u "$SYSTEMROOT" 2>/dev/null)/System32/curl.exe"
+            fi
+            [ -x "${sys_curl:-/c/Windows/System32/curl.exe}" ] && \
+                curl_bin="${sys_curl:-/c/Windows/System32/curl.exe}"
+            ;;
+    esac
+
     local http_code
-    http_code=$(curl -s --max-time 5 -o "$tmp_file" -D "$tmp_headers" -w "%{http_code}" \
+    http_code=$("$curl_bin" -s --max-time 5 -o "$tmp_file" -D "$tmp_headers" -w "%{http_code}" \
         --config "$tmp_curlcfg" \
         "https://api.anthropic.com/api/oauth/usage" \
         -H "anthropic-beta: oauth-2025-04-20" \
