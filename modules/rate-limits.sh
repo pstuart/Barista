@@ -318,7 +318,7 @@ module_rate_limits() {
 
         # 5-hour projection
         if [ -f "$history_file" ] && [ "$five_hour_remaining" -gt 0 ]; then
-            local current_window_data=$(grep "$five_hour_reset" "$history_file" 2>/dev/null | tail -10)
+            local current_window_data=$(grep -F "$five_hour_reset" "$history_file" 2>/dev/null | tail -10)
             if [ -n "$current_window_data" ]; then
                 local first_entry=$(echo "$current_window_data" | head -1)
                 local last_entry=$(echo "$current_window_data" | tail -1)
@@ -350,7 +350,7 @@ module_rate_limits() {
 
         # 7-day projection (needs 12h of data)
         if [ -f "$history_file" ] && [ "$seven_day_remaining" -gt 0 ]; then
-            local current_window_data=$(grep "$seven_day_reset" "$history_file" 2>/dev/null | tail -50)
+            local current_window_data=$(grep -F "$seven_day_reset" "$history_file" 2>/dev/null | tail -50)
             if [ -n "$current_window_data" ]; then
                 local first_entry=$(echo "$current_window_data" | head -1)
                 local last_entry=$(echo "$current_window_data" | tail -1)
