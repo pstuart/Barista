@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint-and-test:
+    name: shellcheck + bash -n + smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Show shellcheck + bash version (for baseline reproducibility)
+        run: |
+          shellcheck --version
+          bash --version | head -1
+
+      - name: Bash syntax check
+        run: |
+          bash -n barista.sh
+          bash -n install.sh
+          for f in modules/*.sh tests/*.sh; do
+            [ -f "$f" ] && bash -n "$f"
+          done
+
+      - name: ShellCheck (informational baseline ~234 findings, see issue #21)
+        run: |
+          # Issue #21 tracks the baseline drift between shellcheck versions.
+          # Until a project-wide .shellcheckrc policy is decided, this step
+          # is informational rather than a hard gate. Errors do NOT fail CI.
+          shellcheck barista.sh install.sh modules/*.sh -f gcc | tee shellcheck.log || true
+          echo "Total findings: $(wc -l < shellcheck.log)"
+
+      - name: Smoke tests
+        run: bash tests/test_sandbox.sh
