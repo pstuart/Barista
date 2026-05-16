@@ -1,0 +1,11 @@
+# Suppress noise-floor warnings that account for 207/234 of the project baseline.
+# See https://github.com/pstuart/Barista/issues/21 for the policy decision.
+#
+# SC2155: "Declare and assign separately to avoid masking return values."
+#   This project uses the `local foo=$(simple-getter)` idiom universally across
+#   modules/*.sh getters. Splitting every declaration would harm readability
+#   without catching real bugs in this codebase.
+#
+# SC2034: "Variable appears unused." Often legitimately so in shell modules
+#   where consumers may source the file and read configuration variables.
+disable=SC2155,SC2034
