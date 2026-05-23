@@ -14,6 +14,11 @@
 module_weather() {
     local location="${WEATHER_LOCATION:-}"
     local units="${WEATHER_UNITS:-u}"
+    # Restrict to wttr.in's documented unit flags so a config value can't inject extra URL params
+    case "$units" in
+        m|u|M) ;;
+        *) units="u" ;;
+    esac
     local show_temp="${WEATHER_SHOW_TEMP:-true}"
     local show_cond="${WEATHER_SHOW_COND:-true}"
     local compact="${WEATHER_COMPACT:-false}"
