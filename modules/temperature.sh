@@ -18,8 +18,8 @@
 module_temperature() {
     local icon=$(get_icon "${TEMP_ICON:-🌡️}" "TEMP:")
     local units="${TEMP_UNITS:-C}"
-    local warn_thresh="${TEMP_WARNING_THRESHOLD:-70}"
-    local crit_thresh="${TEMP_CRITICAL_THRESHOLD:-85}"
+    local warn_thresh=$(safe_int "${TEMP_WARNING_THRESHOLD:-70}" 70)
+    local crit_thresh=$(safe_int "${TEMP_CRITICAL_THRESHOLD:-85}" 85)
     local show_status="${TEMP_SHOW_STATUS:-true}"
 
     local temp=""

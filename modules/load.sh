@@ -23,8 +23,8 @@ module_load() {
         num_cpus=$(nproc 2>/dev/null || echo 4)
     fi
 
-    local warn_thresh="${LOAD_WARNING_THRESHOLD:-$num_cpus}"
-    local crit_thresh="${LOAD_CRITICAL_THRESHOLD:-$((num_cpus * 2))}"
+    local warn_thresh=$(safe_int "${LOAD_WARNING_THRESHOLD:-$num_cpus}" "$num_cpus")
+    local crit_thresh=$(safe_int "${LOAD_CRITICAL_THRESHOLD:-$((num_cpus * 2))}" "$((num_cpus * 2))")
 
     # Get load averages
     local load_output=$(uptime 2>/dev/null | awk -F'load average:' '{print $2}')
