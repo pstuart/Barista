@@ -1952,15 +1952,14 @@ do_install() {
             print_warning "Could not update settings.json - you may need to configure manually"
         fi
     else
-        cat > "$SETTINGS_FILE" << EOF
-{
-  "statusLine": {
-    "type": "command",
-    "command": "$BARISTA_DIR/barista.sh"
-  }
-}
-EOF
-        print_success "Created settings.json"
+        local tmp_file=$(mktemp)
+        if jq -n --arg cmd "$BARISTA_DIR/barista.sh" '{statusLine: {type: "command", command: $cmd}}' > "$tmp_file" 2>/dev/null; then
+            mv "$tmp_file" "$SETTINGS_FILE"
+            print_success "Created settings.json"
+        else
+            rm -f "$tmp_file"
+            print_warning "Could not create settings.json - you may need to configure manually"
+        fi
     fi
 
     # Final message
