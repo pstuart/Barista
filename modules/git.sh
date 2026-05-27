@@ -37,7 +37,7 @@ module_git() {
 
     # Quick check: are we in a git repo?
     if ! git rev-parse --git-dir >/dev/null 2>&1; then
-        cd "$orig_dir" 2>/dev/null
+        cd "$orig_dir" 2>/dev/null || return
         return
     fi
 
@@ -48,7 +48,7 @@ module_git() {
         # Detached HEAD - show short SHA
         git_branch=$(git rev-parse --short HEAD 2>/dev/null)
         if [ -z "$git_branch" ]; then
-            cd "$orig_dir" 2>/dev/null
+            cd "$orig_dir" 2>/dev/null || return
             return
         fi
         git_branch="($git_branch)"  # Indicate detached state
@@ -145,8 +145,8 @@ module_git() {
         fi
     fi
 
-    # Return to original directory
-    cd "$orig_dir" 2>/dev/null
+    # Return to original directory (best-effort; the result must still print)
+    cd "$orig_dir" 2>/dev/null || true
 
     echo "$result"
 }
