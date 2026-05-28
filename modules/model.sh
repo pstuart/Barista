@@ -16,8 +16,8 @@ module_model() {
     local compact="${MODEL_COMPACT:-false}"
     local style="${MODEL_STYLE:-both}"
 
-    local model_name=$(echo "$input" | jq -r '.model.display_name // "Unknown"')
-    local output_style=$(echo "$input" | jq -r '.output_style.name // "default"')
+    local model_name=$(echo "$input" | jq -r '.model.display_name // "Unknown"' 2>/dev/null)
+    local output_style=$(echo "$input" | jq -r '.output_style.name // "default"' 2>/dev/null)
 
     # Compact model names
     if [ "$compact" = "true" ] || is_compact; then
