@@ -19,8 +19,10 @@ module_battery() {
     local charging_icon="${BATTERY_CHARGING_ICON:-⚡}"
     local low_icon="${BATTERY_LOW_ICON:-🪫}"
     local critical_icon="${BATTERY_CRITICAL_ICON:-🔴}"
-    local low_thresh="${BATTERY_LOW_THRESHOLD:-20}"
-    local crit_thresh="${BATTERY_CRITICAL_THRESHOLD:-10}"
+    # Thresholds may come from an untrusted project .barista.conf and feed the integer
+    # comparisons below — coerce non-numeric values to the defaults (matches cpu.sh).
+    local low_thresh=$(safe_int "${BATTERY_LOW_THRESHOLD:-20}" 20)
+    local crit_thresh=$(safe_int "${BATTERY_CRITICAL_THRESHOLD:-10}" 10)
     local show_pct="${BATTERY_SHOW_PERCENTAGE:-true}"
 
     # Get battery info
