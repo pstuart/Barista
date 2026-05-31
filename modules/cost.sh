@@ -21,6 +21,10 @@ module_cost() {
     local decimals=$(safe_int "${COST_DECIMAL_PLACES:-2}" 2)
     local compact="${COST_COMPACT:-false}"
     local min_display="${COST_MINIMUM_DISPLAY:-0.01}"
+    # COST_MINIMUM_DISPLAY can come from an untrusted project .barista.conf and is
+    # interpolated into the `bc` comparison below — keep it a plain decimal so it can't
+    # carry a bc expression. (Sibling of the bc-sink validation added in #27.)
+    [[ "$min_display" =~ ^[0-9]+(\.[0-9]+)?$ ]] || min_display="0.01"
 
     local result=""
 
