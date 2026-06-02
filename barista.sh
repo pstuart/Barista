@@ -84,10 +84,39 @@ RIGHT_SIDE_RESERVE=20        # Space reserved on right side of terminal (used by
 # CONFIGURATION LOADING
 # =============================================================================
 
+# Succeeds unless $1 is group- or world-writable. A barista.conf is sourced as full
+# bash, so a writable one is a persistent code-exec vector (Refs #28 part 3). Mirrors
+# the Darwin/Linux stat fork used in utils.sh; fails open if the mode can't be read so
+# an unusual environment never breaks the statusline.
+config_not_group_or_world_writable() {
+    local f="$1" perms len group_digit other_digit
+    if [ "$(uname)" = "Darwin" ]; then
+        perms=$(/usr/bin/stat -f '%Lp' "$f" 2>/dev/null)
+    else
+        perms=$(stat -c '%a' "$f" 2>/dev/null)
+    fi
+    [ -n "$perms" ] || return 0
+    len=${#perms}
+    group_digit="${perms:len-2:1}"
+    other_digit="${perms:len-1:1}"
+    # octal write bit is 2 (present in digits 2,3,6,7)
+    if (( (group_digit & 2) != 0 || (other_digit & 2) != 0 )); then
+        return 1
+    fi
+    return 0
+}
+
 # Load a trusted config file by sourcing it (only for configs we ship or the user owns)
 load_config() {
     local config_path="$1"
     if [ -f "$config_path" ]; then
+        # The file is sourced as full bash; refuse a group/world-writable one so a
+        # weak umask or shared install dir can't turn it into a code-exec path (#28).
+        if ! config_not_group_or_world_writable "$config_path"; then
+            [ "${DEBUG_MODE:-false}" = "true" ] && \
+                echo "barista: refusing to source group/world-writable config: $config_path" >&2
+            return 1
+        fi
         # shellcheck source=/dev/null
         . "$config_path"
         return 0
