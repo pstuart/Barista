@@ -46,6 +46,12 @@ CACHE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/barista-cache"
 init_cache() {
     if [ ! -d "$CACHE_DIR" ]; then
         mkdir -p "$CACHE_DIR" 2>/dev/null
+        # Restrict to the owner so the cache dir can't be world-readable under a
+        # permissive umask — the cache key names (weather, wan_ip, update_check…)
+        # would otherwise leak config state to other local users. Cache files are
+        # already chmod 600 individually; this hardens the directory uniformly for
+        # every cache client (matches network.sh/weather.sh).
+        chmod 700 "$CACHE_DIR" 2>/dev/null
     fi
 }
 

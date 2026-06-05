@@ -473,6 +473,20 @@ main() {
         apply_theme
     fi
 
+    # Sanitize the untrusted-config width numerics before the layout arithmetic below.
+    # TERMINAL_WIDTH / RIGHT_SIDE_RESERVE are allowlisted from the untrusted project
+    # .barista.conf (loaded just above via the safe parser); a non-positive-integer or
+    # leading-zero ("octal") value would break the wrap math — e.g. TERMINAL_WIDTH="0"
+    # is a modulo-by-zero in the wrap layout, and "08" is a bash arithmetic error. Clamp
+    # once, after all configs load (mirrors the cost/battery config-sink validation).
+    case "${TERMINAL_WIDTH:-}" in
+        ''|*[!0-9]*|0*) TERMINAL_WIDTH="" ;;     # invalid → fall back to auto-detect
+    esac
+    case "${RIGHT_SIDE_RESERVE:-}" in
+        0) ;;                                     # zero is valid (no reserve)
+        ''|*[!0-9]*|0*) RIGHT_SIDE_RESERVE=20 ;;  # invalid/leading-zero → default
+    esac
+
     # Adjust separator based on display mode
     # Normal/verbose modes get padded separators, compact mode gets no padding
     if [ "${DISPLAY_MODE:-normal}" = "compact" ]; then
