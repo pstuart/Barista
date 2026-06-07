@@ -67,7 +67,7 @@ module_temperature() {
     local result="$icon ${display_temp}°${units}"
 
     if [ "$show_status" = "true" ]; then
-        local status_ind=$(get_status "$temp_int" "${TEMP_WARNING_THRESHOLD:-70}" "${TEMP_CRITICAL_THRESHOLD:-85}")
+        local status_ind=$(get_status "$display_temp" "$warn_thresh" "$crit_thresh")
         result="$result${status_ind}"
     fi
 
