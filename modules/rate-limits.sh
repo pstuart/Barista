@@ -192,6 +192,16 @@ _get_projection_status() {
     get_status "$projected" "$warn_thresh" "$crit_thresh"
 }
 
+# Parse an ISO-8601 resets_at timestamp (UTC, fractional seconds stripped by the
+# caller) to epoch seconds. `date -j -f` is BSD/macOS-only; GNU date (Linux,
+# Git Bash on Windows) needs -d. Try both so time-remaining works everywhere.
+_parse_reset_epoch() {
+    local ts="$1"
+    date -u -j -f "%Y-%m-%dT%H:%M:%S" "$ts" +%s 2>/dev/null || \
+        date -u -d "$ts" +%s 2>/dev/null || \
+        echo 0
+}
+
 module_rate_limits() {
     local show_5h="${RATE_SHOW_5H:-true}"
     local show_7d="${RATE_SHOW_7D:-true}"
@@ -310,7 +320,7 @@ module_rate_limits() {
 
     # Parse 5-hour reset time and calculate projection
     if [ -n "$five_hour_reset" ]; then
-        local five_hour_reset_epoch=$(date -u -j -f "%Y-%m-%dT%H:%M:%S" "${five_hour_reset%%.*}" +%s 2>/dev/null || echo 0)
+        local five_hour_reset_epoch=$(_parse_reset_epoch "${five_hour_reset%%.*}")
         five_hour_remaining=$((five_hour_reset_epoch - now))
         if [ "$five_hour_remaining" -gt 18000 ]; then
             five_hour_remaining=18000
@@ -342,7 +352,7 @@ module_rate_limits() {
 
     # Parse 7-day reset time and calculate projection
     if [ -n "$seven_day_reset" ]; then
-        local seven_day_reset_epoch=$(date -u -j -f "%Y-%m-%dT%H:%M:%S" "${seven_day_reset%%.*}" +%s 2>/dev/null || echo 0)
+        local seven_day_reset_epoch=$(_parse_reset_epoch "${seven_day_reset%%.*}")
         seven_day_remaining=$((seven_day_reset_epoch - now))
         if [ "$seven_day_remaining" -gt 604800 ]; then
             seven_day_remaining=604800
