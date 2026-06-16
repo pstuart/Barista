@@ -191,6 +191,28 @@ assert_eq "verbose mode is verbose"    "yes" "$(is_verbose && echo yes || echo n
 DISPLAY_MODE="normal"
 assert_eq "normal mode is not verbose" "no"  "$(is_verbose && echo yes || echo no)"
 
+# -----------------------------------------------------------------------------
+# json_get <json> <path> [default] / json_get_int <json> <path> [default]
+# jq extraction with a default fallback. Empty or "null" json short-circuits to
+# the default (no jq call). Otherwise `jq -r "<path> // empty"`, and an
+# empty / null / missing result falls back to the default. json_get_int
+# additionally coerces through safe_int (non-numeric -> default). Requires jq.
+# -----------------------------------------------------------------------------
+echo "=== json_get / json_get_int Tests ==="
+assert_eq "json_get extracts a string value"           "bar" "$(json_get '{"foo":"bar"}' '.foo' 'def')"
+assert_eq "json_get extracts a nested value"           "c"   "$(json_get '{"a":{"b":"c"}}' '.a.b' 'def')"
+assert_eq "json_get returns a numeric value as text"   "42"  "$(json_get '{"n":42}' '.n' 'def')"
+assert_eq "json_get missing key falls back to default" "def" "$(json_get '{"foo":"bar"}' '.missing' 'def')"
+assert_eq "json_get json null literal -> default"      "def" "$(json_get 'null' '.foo' 'def')"
+assert_eq "json_get empty json -> default"             "def" "$(json_get '' '.foo' 'def')"
+assert_eq "json_get explicit-null field -> default"    "def" "$(json_get '{"foo":null}' '.foo' 'def')"
+assert_eq "json_get malformed json -> default"         "def" "$(json_get 'not json' '.foo' 'def')"
+assert_eq "json_get omitted default is empty"          ""    "$(json_get '{}' '.missing')"
+assert_eq "json_get_int extracts an integer"           "42"  "$(json_get_int '{"n":42}' '.n')"
+assert_eq "json_get_int non-numeric -> default 0"      "0"   "$(json_get_int '{"n":"x"}' '.n')"
+assert_eq "json_get_int missing -> explicit default"   "5"   "$(json_get_int '{}' '.n' '5')"
+assert_eq "json_get_int omitted default is 0"          "0"   "$(json_get_int '{}' '.n')"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1
