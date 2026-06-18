@@ -9,6 +9,8 @@
 #   RATE_SHOW_TIME_REMAINING - Show time until reset (default: true)
 #   RATE_SHOW_PROJECTION    - Show projection status (default: true)
 #   RATE_SHOW_USAGE_STATUS  - Show usage level indicator (default: true)
+#   RATE_SHOW_PROGRESS_BAR  - Show visual progress bar (default: false)
+#   RATE_PROGRESS_BAR_WIDTH - Progress bar width (default: PROGRESS_BAR_WIDTH)
 #   RATE_LOW_THRESHOLD      - Green/yellow boundary (default: 50)
 #   RATE_MEDIUM_THRESHOLD   - Yellow/orange boundary (default: 75)
 #   RATE_HIGH_THRESHOLD     - Orange/red boundary (default: 95)
@@ -197,6 +199,8 @@ module_rate_limits() {
     local show_7d="${RATE_SHOW_7D:-true}"
     local show_time="${RATE_SHOW_TIME_REMAINING:-true}"
     local show_usage_status="${RATE_SHOW_USAGE_STATUS:-true}"
+    local show_bar="${RATE_SHOW_PROGRESS_BAR:-false}"
+    local bar_width="${RATE_PROGRESS_BAR_WIDTH:-}"
     local compact="${RATE_COMPACT:-false}"
     local label_5h="${RATE_5H_LABEL:-5h}"
     local label_7d="${RATE_7D_LABEL:-7d}"
@@ -401,15 +405,23 @@ module_rate_limits() {
         stale_marker=" $(get_icon '⏸' 'WAIT')${cooldown_display}"
     fi
 
+    # Optional progress bars (rendered between label and percentage)
+    local five_hour_bar=""
+    local seven_day_bar=""
+    if [ "$show_bar" = "true" ]; then
+        five_hour_bar="$(progress_bar "$five_hour_int" "$bar_width") "
+        seven_day_bar="$(progress_bar "$seven_day_int" "$bar_width") "
+    fi
+
     if [ "$show_5h" = "true" ]; then
-        result="${label_5h}:${five_hour_int}% ${five_hour_usage_ind}${five_hour_status}"
+        result="${label_5h}:${five_hour_bar}${five_hour_int}% ${five_hour_usage_ind}${five_hour_status}"
         if [ "$show_time" = "true" ] && [ "$five_hour_remaining" -gt 0 ] 2>/dev/null && ! is_compact "$compact"; then
             result="${result} ($(format_time_remaining $five_hour_remaining))"
         fi
     fi
 
     if [ "$show_7d" = "true" ]; then
-        local seven_day_part="${label_7d}:${seven_day_int}% ${seven_day_usage_ind}${seven_day_status}"
+        local seven_day_part="${label_7d}:${seven_day_bar}${seven_day_int}% ${seven_day_usage_ind}${seven_day_status}"
         if [ "$show_time" = "true" ] && [ "$seven_day_remaining" -gt 0 ] 2>/dev/null && ! is_compact "$compact"; then
             seven_day_part="${seven_day_part} ($(format_time_remaining $seven_day_remaining))"
         fi
