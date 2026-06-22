@@ -598,9 +598,9 @@ get_module_sample() {
             ;;
         node)
             if [ "$USE_EMOJI" = "true" ]; then
-                echo "⬢ 22.12.0"
+                echo "⬢ 24.x"
             else
-                echo "NODE: 22.12.0"
+                echo "NODE: 24.x"
             fi
             ;;
         weather)
