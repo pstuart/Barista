@@ -54,6 +54,33 @@ DISPLAY_MODE="compact"
 # Emoji is the default style; a mid-range value selects the yellow indicator.
 STATUS_STYLE="emoji"
 assert_eq "emoji style yields the yellow dot" "🟡" "$(get_status 70 60 80)"
+
+# -----------------------------------------------------------------------------
+# get_status_4level <value> <low> <medium> <high>
+# 4-level threshold: value >= high -> red, >= medium -> orange, >= low -> yellow,
+# else green. All boundaries use >=. Defaults: low=50, medium=75, high=95.
+# (The usage comment lists a 5th <critical> arg but the function ignores it.)
+# -----------------------------------------------------------------------------
+echo "=== get_status_4level Tests ==="
+unset STATUS_GREEN STATUS_YELLOW STATUS_RED STATUS_ORANGE
+USE_STATUS_INDICATORS="true"
+DISPLAY_MODE="compact"      # prefix = "" so the output is exactly the indicator
+STATUS_STYLE="ascii"        # [OK] / [MED] / [HIGH] / [CRIT] — deterministic, no emoji
+
+assert_eq "4level below low is green"                "[OK]"   "$(get_status_4level 40 50 75 95)"
+assert_eq "4level at low boundary is yellow (>=)"    "[MED]"  "$(get_status_4level 50 50 75 95)"
+assert_eq "4level between low and medium is yellow"  "[MED]"  "$(get_status_4level 60 50 75 95)"
+assert_eq "4level at medium boundary is orange (>=)" "[HIGH]" "$(get_status_4level 75 50 75 95)"
+assert_eq "4level between medium and high is orange" "[HIGH]" "$(get_status_4level 80 50 75 95)"
+assert_eq "4level at high boundary is red (>=)"      "[CRIT]" "$(get_status_4level 95 50 75 95)"
+assert_eq "4level above high is red"                 "[CRIT]" "$(get_status_4level 100 50 75 95)"
+assert_eq "4level non-numeric value coerces to 0 -> green" "[OK]" "$(get_status_4level abc 50 75 95)"
+
+# Default thresholds when omitted are low=50, medium=75, high=95.
+assert_eq "4level default thresholds: 40 -> green"  "[OK]"   "$(get_status_4level 40)"
+assert_eq "4level default thresholds: 80 -> orange" "[HIGH]" "$(get_status_4level 80)"
+assert_eq "4level default thresholds: 96 -> red"    "[CRIT]" "$(get_status_4level 96)"
+STATUS_STYLE="emoji"
 STATUS_STYLE="ascii"
 
 # Indicators can be disabled entirely.
