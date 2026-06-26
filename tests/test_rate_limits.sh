@@ -1,7 +1,7 @@
 #!/bin/bash
-# ABOUTME: Tests for _parse_reset_epoch in modules/rate-limits.sh -- the resets_at
-# ABOUTME: ISO-8601 -> epoch parser added in #38 so time-remaining works on Linux/
-# ABOUTME: Windows (GNU date) as well as macOS (BSD date).
+# ABOUTME: Tests for modules/rate-limits.sh -- _parse_reset_epoch (the #38 resets_at
+# ABOUTME: ISO-8601 -> epoch parser that works on BSD/macOS and GNU/Linux date) and
+# ABOUTME: _check_backoff (the post-429 cooldown-state file reader).
 # ABOUTME: Run with: bash tests/test_rate_limits.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -40,6 +40,59 @@ assert_eq "parses a UTC midnight timestamp to epoch"   "1767225600" "$(_parse_re
 assert_eq "parses a different year (not hardcoded)"    "1735689600" "$(_parse_reset_epoch '2025-01-01T00:00:00')"
 assert_eq "parses the time-of-day, not just the date"  "1767270600" "$(_parse_reset_epoch '2026-01-01T12:30:00')"
 assert_eq "unparseable input falls back to 0"          "0"          "$(_parse_reset_epoch 'not-a-date')"
+
+# Load utils.sh too -- _check_backoff needs _file_mtime + CACHE_DIR from it.
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/modules/utils.sh"
+
+# Sandbox CACHE_DIR so the suite never touches the real ~/.claude/barista-cache.
+TEST_BASE="$(mktemp -d "${TMPDIR:-/tmp}/barista-backoff-test.XXXXXX")"
+CACHE_DIR="$TEST_BASE/cache"
+mkdir -p "$CACHE_DIR"
+BACKOFF_FILE="$CACHE_DIR/rate_limits_backoff"
+
+# -----------------------------------------------------------------------------
+# _check_backoff
+# After a 429 the module writes $CACHE_DIR/rate_limits_backoff: line 1 is the
+# retry-after duration in seconds, the file mtime is when the 429 happened. While
+# now-mtime < duration it prints the seconds remaining and returns 0 (still in
+# cooldown); once the window elapses it deletes the stale file and returns 1; a
+# missing file returns 1 with no output. The duration falls back to
+# RATE_BACKOFF_SECONDS (default 300) when the file's first line is empty. We age
+# the file with `touch -t` rather than mocking the clock, and assert on the
+# return code / side-effect (not the exact remaining seconds, which drifts ~1s).
+# -----------------------------------------------------------------------------
+echo "=== _check_backoff Tests ==="
+
+# No backoff file -> not in cooldown.
+out="$(_check_backoff)"; rc=$?
+assert_eq "no backoff file returns non-zero"                  "1" "$rc"
+assert_eq "no backoff file prints nothing"                   ""  "$out"
+
+# Active cooldown: a long duration written just now -> remaining printed, file kept.
+printf '999999\n' > "$BACKOFF_FILE"
+out="$(_check_backoff)"; rc=$?
+assert_eq "active backoff returns zero"                       "0" "$rc"
+assert_eq "active backoff prints a numeric remaining"         "1" "$(printf '%s' "$out" | grep -qE '^[0-9]+$' && echo 1 || echo 0)"
+assert_eq "active backoff keeps the file"                     "1" "$([ -f "$BACKOFF_FILE" ] && echo 1 || echo 0)"
+
+# Expired cooldown: short duration, file aged far past it -> stale file deleted.
+printf '1\n' > "$BACKOFF_FILE"
+touch -t 200001010000 "$BACKOFF_FILE"
+out="$(_check_backoff)"; rc=$?
+assert_eq "expired backoff returns non-zero"                  "1" "$rc"
+assert_eq "expired backoff prints nothing"                   ""  "$out"
+assert_eq "expired backoff deletes the stale file"            "1" "$([ ! -f "$BACKOFF_FILE" ] && echo 1 || echo 0)"
+
+# Empty first line -> duration falls back to RATE_BACKOFF_SECONDS, fresh -> active.
+RATE_BACKOFF_SECONDS=999999
+: > "$BACKOFF_FILE"
+out="$(_check_backoff)"; rc=$?
+assert_eq "empty duration falls back to RATE_BACKOFF_SECONDS" "0" "$rc"
+unset RATE_BACKOFF_SECONDS
+
+rm -f "$BACKOFF_FILE"
+rmdir "$CACHE_DIR" "$TEST_BASE" 2>/dev/null
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
