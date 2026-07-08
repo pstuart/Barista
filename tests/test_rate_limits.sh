@@ -91,6 +91,30 @@ out="$(_check_backoff)"; rc=$?
 assert_eq "empty duration falls back to RATE_BACKOFF_SECONDS" "0" "$rc"
 unset RATE_BACKOFF_SECONDS
 
+# -----------------------------------------------------------------------------
+# _get_projection_status <projected>
+# The 5h/7d projection indicator (rate-limits.sh:178). Suppressed (empty) when
+# RATE_SHOW_PROJECTION is off, or when projected usage is below the warning
+# threshold -- an indicator only appears once usage projects into warning/critical
+# territory, where it delegates to get_status. Defaults: warn 80, crit 100.
+# STATUS_STYLE=ascii pins get_status to byte-clean [WARN]/[CRIT]; the per-command
+# env vars are scoped to their own $(...) subshell so they don't leak between asserts.
+# -----------------------------------------------------------------------------
+echo "=== _get_projection_status Tests ==="
+STATUS_STYLE=ascii
+DISPLAY_MODE=compact
+USE_STATUS_INDICATORS=true
+unset RATE_SHOW_PROJECTION RATE_WARNING_THRESHOLD RATE_CRITICAL_THRESHOLD
+
+assert_eq "disabled -> empty even when projected is high" ""       "$(RATE_SHOW_PROJECTION=false _get_projection_status 90)"
+assert_eq "below the default warning (80) -> empty"       ""       "$(_get_projection_status 50)"
+assert_eq "at the warning boundary (80) shows warning"    "[WARN]" "$(_get_projection_status 80)"
+assert_eq "above warning, below critical -> warning"      "[WARN]" "$(_get_projection_status 85)"
+assert_eq "at/above critical (100) -> critical"           "[CRIT]" "$(_get_projection_status 100)"
+assert_eq "custom warning threshold is honored"           "[WARN]" "$(RATE_WARNING_THRESHOLD=50 _get_projection_status 60)"
+assert_eq "below the custom warning threshold -> empty"   ""       "$(RATE_WARNING_THRESHOLD=50 _get_projection_status 40)"
+assert_eq "disabled beats a critical projection"          ""       "$(RATE_SHOW_PROJECTION=false _get_projection_status 150)"
+
 rm -f "$BACKOFF_FILE"
 rmdir "$CACHE_DIR" "$TEST_BASE" 2>/dev/null
 
