@@ -35,7 +35,7 @@ module_memory() {
         pages_wired=$(echo "$vm_output" | grep "Pages wired down" | awk '{print $4}' | tr -d '.')
 
         if [ -n "$pages_free" ] && [ -n "$pages_active" ]; then
-            local page_size=4096
+            local page_size=$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)
             local total_mem=$(sysctl -n hw.memsize 2>/dev/null)
             local used_pages=$((pages_active + pages_wired))
             local used_bytes=$((used_pages * page_size))
