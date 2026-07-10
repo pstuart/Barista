@@ -90,6 +90,9 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
 | **rate-limits** | Real-time 5-hour and 7-day rate limit tracking with projections |
 | **time** | Current date and time |
 | **battery** | Battery percentage (macOS) |
+| **sandbox** | Lock icon when running inside a macOS app sandbox |
+| **version** | Barista version, shown briefly after startup |
+| **update** | Daily check for new Barista releases with update notification |
 
 ### System Modules (The Espresso Shots)
 
@@ -150,7 +153,7 @@ DIR: myproject | CTX: ####---- 50%[OK] | GIT: main      # ASCII mode
 - **Bash 3.2+** - Works with macOS default bash
 - **jq** - JSON processor (required)
 - **bc** - Basic calculator (usually pre-installed)
-- **macOS** - For battery and OAuth keychain access (Linux support partial)
+- **macOS** - For battery and OAuth keychain access; rate-limit tracking also works on Linux and Windows (Git Bash)
 
 ```bash
 # Install dependencies on macOS
@@ -341,6 +344,8 @@ RATE_SHOW_USAGE_STATUS="true"   # Show 4-level color indicators
 RATE_LOW_THRESHOLD=50           # Green/yellow boundary
 RATE_MEDIUM_THRESHOLD=75        # Yellow/orange boundary
 RATE_HIGH_THRESHOLD=95          # Orange/red boundary
+RATE_SHOW_PROGRESS_BAR="false"  # Optional progress bars for 5h/7d usage
+RATE_PROGRESS_BAR_WIDTH=""      # Empty = use global PROGRESS_BAR_WIDTH
 
 # Custom order
 MODULE_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
@@ -446,9 +451,19 @@ MODULE_ORDER="...,mycustom,..."
 - Make sure you're running in a proper terminal (not a script)
 - Try a different terminal emulator if issues persist
 
+### Config file not loading
+- Barista refuses to source a `barista.conf` or `.barista.conf` that is group- or world-writable (it's executed as bash, so a writable config is a code-execution vector)
+- Fix with `chmod 644 barista.conf`
+
 ### Testing manually
 ```bash
 echo '{"workspace":{"current_dir":"'$PWD'"},"model":{"display_name":"Test"},"output_style":{"name":"default"},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":10000}}}' | ~/.claude/barista/barista.sh
+```
+
+### Running the test suite
+Regression tests live in `tests/` and run standalone:
+```bash
+bash tests/test_utils.sh    # or any other tests/test_*.sh
 ```
 
 ## Uninstall

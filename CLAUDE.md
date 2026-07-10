@@ -32,7 +32,12 @@ Barista/
 │   ├── node.sh         # Node.js version
 │   ├── docker.sh       # Docker container status
 │   ├── weather.sh      # Weather via wttr.in
+│   ├── sandbox.sh      # Lock icon when in a macOS app sandbox
+│   ├── version.sh      # Barista version, shown briefly after startup
+│   ├── update.sh       # Daily GitHub check for new releases
 │   └── ...             # Additional modules
+├── tests/              # Regression tests (bash tests/test_*.sh, standalone)
+├── .shellcheckrc       # Shellcheck policy (SC2155, SC2034 disabled)
 └── README.md
 ```
 
@@ -44,6 +49,8 @@ Barista/
    - `barista.conf` in script directory
    - `$CLAUDE_CONFIG_DIR/barista.conf` (user overrides, defaults to `~/.claude/`)
    - `.barista.conf` in current project directory (per-project overrides)
+
+   Config files are sourced as bash, so Barista refuses to load any config that is group- or world-writable, and validates config-derived numerics before they reach `bc`/URL sinks.
 3. **Modules are loaded** from `modules/` directory (`utils.sh` first, then all others)
 4. **Modules are executed** in the order specified by `MODULE_ORDER` config
 5. **Output is concatenated** with the configured `SEPARATOR` and printed
@@ -171,6 +178,15 @@ Both respect `DISPLAY_MODE` for spacing and `STATUS_STYLE` for appearance (emoji
 
 ## Testing
 
+Regression tests live in `tests/` (pure-bash assert harness, no framework). Each file runs standalone:
+```bash
+bash tests/test_utils.sh        # utils.sh helpers
+bash tests/test_rate_limits.sh  # rate-limit parsers/backoff
+# also: test_cache, test_project, test_sandbox, test_update, test_uptime
+```
+
+Lint with `shellcheck` — `.shellcheckrc` disables SC2155 and SC2034 project-wide (see issue #21 for the policy).
+
 Test the statusline manually:
 ```bash
 echo '{"workspace":{"current_dir":"'$PWD'"},"model":{"display_name":"Test"},"output_style":{"name":"default"},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":10000}}}' | ./barista.sh
@@ -207,11 +223,12 @@ Modules also include their own `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` fallback fo
 ## Rate Limits Module
 
 The rate limits module (`rate-limits.sh`) is the most complex:
-- Fetches usage from Anthropic API using OAuth token from macOS Keychain
+- Fetches usage from Anthropic API using OAuth token from macOS Keychain (handles hex-encoded Keychain output; also works on Linux and Windows/Git Bash)
 - Caches responses to avoid excessive API calls
+- Backs off after 429 responses, honoring `Retry-After` headers
 - Maintains history file for projection calculations
 - Implements file size caps to prevent memory issues
-- Shows 4-level color indicators for usage thresholds
+- Shows 4-level color indicators for usage thresholds, plus optional progress bars (`RATE_SHOW_PROGRESS_BAR`)
 
 ## Installation
 
