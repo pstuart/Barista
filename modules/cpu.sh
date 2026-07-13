@@ -21,7 +21,7 @@ module_cpu() {
     local cpu_usage
     if [ "$(uname)" = "Darwin" ]; then
         # macOS: use top to get CPU usage
-        cpu_usage=$(top -l 1 -n 0 2>/dev/null | grep "CPU usage" | awk '{print $3}' | tr -d '%')
+        cpu_usage=$(top -l 1 -n 0 2>/dev/null | grep "CPU usage" | awk '{u=$3; s=$5; sub(/%/,"",u); sub(/%/,"",s); print u+s}')
     else
         # Linux: use /proc/stat
         cpu_usage=$(grep 'cpu ' /proc/stat 2>/dev/null | awk '{usage=($2+$4)*100/($2+$4+$5)} END {printf "%.0f", usage}')
