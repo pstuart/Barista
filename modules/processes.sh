@@ -31,7 +31,7 @@ module_processes() {
         # Linux
         if [ -d /proc ]; then
             total_procs=$(ls -d /proc/[0-9]* 2>/dev/null | wc -l)
-            running_procs=$(grep -l "^R" /proc/*/status 2>/dev/null | wc -l)
+            running_procs=$(grep -lE '^State:[[:space:]]*R' /proc/*/status 2>/dev/null | wc -l)
         else
             total_procs=$(ps aux 2>/dev/null | wc -l | tr -d ' ')
             total_procs=$((total_procs - 1))
