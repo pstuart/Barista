@@ -39,7 +39,8 @@ module_uptime() {
 
     # Add load average if requested
     if [ "$show_load" = "true" ]; then
-        local load=$(uptime 2>/dev/null | awk -F'load average:' '{print $2}' | awk '{print $1}' | tr -d ',')
+        # macOS prints "load averages:" (plural), Linux "load average:" — match both.
+        local load=$(uptime 2>/dev/null | awk -F'load averages?:' '{print $2}' | awk '{print $1}' | tr -d ',')
         if [ -n "$load" ]; then
             result="$result [$load]"
         fi

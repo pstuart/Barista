@@ -27,7 +27,8 @@ module_load() {
     local crit_thresh=$(safe_int "${LOAD_CRITICAL_THRESHOLD:-$((num_cpus * 2))}" "$((num_cpus * 2))")
 
     # Get load averages
-    local load_output=$(uptime 2>/dev/null | awk -F'load average:' '{print $2}')
+    # macOS prints "load averages:" (plural), Linux "load average:" — match both.
+    local load_output=$(uptime 2>/dev/null | awk -F'load averages?:' '{print $2}')
 
     if [ -z "$load_output" ]; then
         return
