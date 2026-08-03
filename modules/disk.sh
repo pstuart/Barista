@@ -21,8 +21,15 @@ module_disk() {
     local crit_thresh="${DISK_CRITICAL_THRESHOLD:-90}"
     local show_status="${DISK_SHOW_STATUS:-true}"
 
-    # Get disk usage
-    local df_output=$(df -h "$disk_path" 2>/dev/null | tail -1)
+    # Get disk usage. Reject leading-dash paths so untrusted DISK_PATH can't
+    # inject df options (e.g. DISK_PATH=-a). Prefer end-of-options on GNU df;
+    # BSD df (macOS) ignores -- and still needs the leading-dash guard.
+    case "$disk_path" in
+        -*) return ;;
+    esac
+    local df_output
+    df_output=$(df -h -- "$disk_path" 2>/dev/null || df -h "$disk_path" 2>/dev/null)
+    df_output=$(echo "$df_output" | tail -1)
 
     if [ -z "$df_output" ]; then
         return

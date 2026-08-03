@@ -17,14 +17,42 @@ module_cpu() {
     local crit_thresh="${CPU_CRITICAL_THRESHOLD:-80}"
     local show_status="${CPU_SHOW_STATUS:-true}"
 
-    # Get CPU usage (macOS specific)
+    # Get CPU usage
     local cpu_usage
     if [ "$(uname)" = "Darwin" ]; then
-        # macOS: use top to get CPU usage
+        # macOS: top sample (user + sys; #51)
         cpu_usage=$(top -l 1 -n 0 2>/dev/null | grep "CPU usage" | awk '{u=$3; s=$5; sub(/%/,"",u); sub(/%/,"",s); print u+s}')
     else
-        # Linux: use /proc/stat
-        cpu_usage=$(grep 'cpu ' /proc/stat 2>/dev/null | awk '{usage=($2+$4)*100/($2+$4+$5)} END {printf "%.0f", usage}')
+        # Linux: single-shot /proc/stat is lifetime average since boot — not
+        # "current" CPU%. Diff against a previous sample cached under barista-cache
+        # (statusline re-renders often → second+ ticks are accurate; first tick
+        # seeds the cache and returns empty so we don't show a bogus % forever).
+        local cur prev puser pnice psystem pidle cuser cnice csystem cidle
+        local duser dnice dsystem didle dtotal
+        cur=$(grep '^cpu ' /proc/stat 2>/dev/null)
+        if [ -n "$cur" ]; then
+            init_cache
+            local stat_file="${CACHE_DIR}/cpu_stat"
+            if [ -f "$stat_file" ]; then
+                prev=$(cat "$stat_file" 2>/dev/null)
+                # shellcheck disable=SC2086
+                set -- $prev
+                puser=${2:-0}; pnice=${3:-0}; psystem=${4:-0}; pidle=${5:-0}
+                # shellcheck disable=SC2086
+                set -- $cur
+                cuser=${2:-0}; cnice=${3:-0}; csystem=${4:-0}; cidle=${5:-0}
+                duser=$((cuser - puser))
+                dnice=$((cnice - pnice))
+                dsystem=$((csystem - psystem))
+                didle=$((cidle - pidle))
+                dtotal=$((duser + dnice + dsystem + didle))
+                if [ "$dtotal" -gt 0 ]; then
+                    cpu_usage=$(( (duser + dnice + dsystem) * 100 / dtotal ))
+                fi
+            fi
+            printf '%s\n' "$cur" > "$stat_file" 2>/dev/null
+            chmod 600 "$stat_file" 2>/dev/null
+        fi
     fi
 
     if [ -z "$cpu_usage" ]; then
