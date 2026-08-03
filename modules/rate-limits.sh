@@ -124,6 +124,10 @@ _get_claude_usage() {
     local tmp_headers="$CACHE_DIR/rate_limits_headers"
     local tmp_curlcfg="$CACHE_DIR/rate_limits_curlcfg"
     init_cache
+    # Clean curlcfg (Bearer token) + response temps even if curl is killed/timeout.
+    # Bash 3.2: EXIT trap covers normal return and signals that terminate the shell.
+    # shellcheck disable=SC2064
+    trap 'rm -f "$tmp_curlcfg" "$tmp_file" "$tmp_headers" 2>/dev/null' EXIT
     printf 'header = "Authorization: Bearer %s"\n' "$token" > "$tmp_curlcfg"
     chmod 600 "$tmp_curlcfg" 2>/dev/null
     # On Git Bash / MSYS, some mingw curl builds (notably 8.8 shipped with
@@ -147,12 +151,14 @@ _get_claude_usage() {
         "https://api.anthropic.com/api/oauth/usage" \
         -H "anthropic-beta: oauth-2025-04-20" \
         -H "Accept: application/json" 2>/dev/null)
+    # Wipe token file immediately after curl (trap is the safety net)
     rm -f "$tmp_curlcfg" 2>/dev/null
 
     case "$http_code" in
         200)
             cat "$tmp_file" 2>/dev/null
             rm -f "$tmp_file" "$tmp_headers" 2>/dev/null
+            trap - EXIT
             return 0
             ;;
         429)
@@ -164,11 +170,13 @@ _get_claude_usage() {
             init_cache
             echo "$backoff_duration" > "$backoff_file" 2>/dev/null
             rm -f "$tmp_file" "$tmp_headers" 2>/dev/null
+            trap - EXIT
             return 1
             ;;
         *)
             log_debug "rate-limits: API returned HTTP $http_code"
             rm -f "$tmp_file" "$tmp_headers" 2>/dev/null
+            trap - EXIT
             return 1
             ;;
     esac

@@ -41,9 +41,37 @@ module_network() {
         fi
     fi
 
-    # Get WiFi SSID (macOS)
+    # Get WiFi SSID (macOS). The legacy `airport` CLI was removed in Sonoma+;
+    # prefer networksetup / ipconfig getsummary, fall back to airport if present.
+    # Capture the full SSID (spaces allowed) — never awk $2 only.
     if [ "$show_ssid" = "true" ] && [ "$(uname)" = "Darwin" ]; then
-        local ssid=$(/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport -I 2>/dev/null | grep ' SSID' | awk '{print $2}')
+        local ssid="" wifi_dev line airport
+        wifi_dev=$(networksetup -listallhardwareports 2>/dev/null | awk '/Wi-Fi|AirPort/{getline; print $2; exit}')
+        wifi_dev="${wifi_dev:-en0}"
+
+        line=$(networksetup -getairportnetwork "$wifi_dev" 2>/dev/null)
+        case "$line" in
+            "Current Wi-Fi Network: "*)
+                ssid="${line#Current Wi-Fi Network: }"
+                ;;
+        esac
+
+        if [ -z "$ssid" ]; then
+            ssid=$(ipconfig getsummary "$wifi_dev" 2>/dev/null | sed -n 's/^  SSID : //p' | head -1)
+        fi
+
+        if [ -z "$ssid" ]; then
+            for airport in \
+                /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport \
+                /System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport; do
+                if [ -x "$airport" ]; then
+                    # Full field after ": " — multi-word SSIDs
+                    ssid=$("$airport" -I 2>/dev/null | sed -n 's/^ *SSID: //p' | head -1)
+                    break
+                fi
+            done
+        fi
+
         if [ -n "$ssid" ]; then
             if [ -n "$parts" ]; then
                 parts="$parts ($ssid)"

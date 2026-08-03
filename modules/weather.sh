@@ -42,9 +42,12 @@ module_weather() {
 
     # Fetch fresh data if needed
     if [ -z "$weather_data" ]; then
-        # Sanitize location: reject shell metacharacters and URL-unsafe sequences
+        # Sanitize location: reject shell metacharacters AND URL query hijacks.
+        # Untrusted project .barista.conf can set WEATHER_LOCATION; a value like
+        # "x?format=@v" or "x#frag" would rewrite the wttr.in query string.
+        # Also reject whitespace / control chars (path segment must stay simple).
         case "$location" in
-            *\`*|*\$\(*|*\;*|*\|*|*\&*|*\>*|*\<*|*\'*|*\"*|*\\*)
+            *\`*|*\$\(*|*\;*|*\|*|*\&*|*\>*|*\<*|*\'*|*\"*|*\\*|*'?'*|*'#'*|*' '*|*[[:cntrl:]]*)
                 log_debug "weather: rejected unsafe WEATHER_LOCATION value"
                 return
                 ;;
