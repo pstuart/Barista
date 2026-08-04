@@ -319,12 +319,15 @@ module_rate_limits() {
 
         # Record the data point
         echo "$now,$five_hour,$seven_day,$five_hour_reset,$seven_day_reset" >> "$history_file" 2>/dev/null
+        # Not secrets, but keep owner-only like cache/token temps (defense-in-depth)
+        chmod 600 "$history_file" 2>/dev/null
 
         # Routine cleanup - keep last 100 entries within 24 hours
         if [ -f "$history_file" ]; then
             local cutoff=$((now - 86400))
             tail -100 "$history_file" | awk -F',' -v cutoff="$cutoff" '$1 >= cutoff' > "${history_file}.tmp" 2>/dev/null && \
                 mv "${history_file}.tmp" "$history_file" 2>/dev/null
+            chmod 600 "$history_file" 2>/dev/null
         fi
     fi
 
