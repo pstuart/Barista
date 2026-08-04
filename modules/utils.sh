@@ -112,6 +112,8 @@ cache_set() {
 
     local cache_file="$CACHE_DIR/${key}"
     echo "$value" > "$cache_file" 2>/dev/null
+    # Defense-in-depth if dir 700 fails (odd FS/umask); matches wan_ip/token files.
+    chmod 600 "$cache_file" 2>/dev/null
 }
 
 # Clear specific cache key or all cache
