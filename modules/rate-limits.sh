@@ -146,7 +146,10 @@ _get_claude_usage() {
     esac
 
     local http_code
-    http_code=$("$curl_bin" -s --max-time 5 -o "$tmp_file" -D "$tmp_headers" -w "%{http_code}" \
+    # --proto =https + --max-redirs 3: match weather/update; block HTTP redirect
+    # that could re-expose the Bearer token from curlcfg on a non-TLS hop.
+    http_code=$("$curl_bin" -s --max-time 5 --proto =https --max-redirs 3 \
+        -o "$tmp_file" -D "$tmp_headers" -w "%{http_code}" \
         --config "$tmp_curlcfg" \
         "https://api.anthropic.com/api/oauth/usage" \
         -H "anthropic-beta: oauth-2025-04-20" \
