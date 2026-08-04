@@ -9,11 +9,13 @@
 #   BRIGHTNESS_BAR_WIDTH    - Width of progress bar (default: 5)
 # =============================================================================
 
-# Note: Requires brightness command (brew install brightness) or
-# uses AppleScript fallback on macOS
+# macOS: prefer IODisplayParameters via ioreg (works without third-party tools).
+# Optional accelerator: brew install brightness. Legacy appearance-preferences
+# AppleScript and fixed 0–1024 AppleBacklightDisplay scale are dead on modern macOS.
 
 module_brightness() {
-    local icon=$(get_icon "${BRIGHTNESS_ICON:-☀️}" "BRT:")
+    local icon
+    icon=$(get_icon "${BRIGHTNESS_ICON:-☀️}" "BRT:")
     local show_pct="${BRIGHTNESS_SHOW_PERCENT:-true}"
     local show_bar="${BRIGHTNESS_SHOW_BAR:-false}"
     local bar_width="${BRIGHTNESS_BAR_WIDTH:-5}"
@@ -21,7 +23,7 @@ module_brightness() {
     local brightness=""
 
     if [ "$(uname)" = "Darwin" ]; then
-        # Try brightness command first
+        # Prefer brew brightness CLI when present (fast, direct)
         if command -v brightness >/dev/null 2>&1; then
             brightness=$(brightness -l 2>/dev/null | grep -o 'brightness [0-9.]*' | awk '{print $2}' | head -1)
             if [ -n "$brightness" ]; then
@@ -29,20 +31,31 @@ module_brightness() {
             fi
         fi
 
-        # Fallback to AppleScript
+        # Primary fallback: IODisplayParameters "brightness"={min,max,value}
+        # Live shape (Apple Silicon / modern macOS): max=65536, not 0–1024.
         if [ -z "$brightness" ]; then
-            brightness=$(osascript -e 'tell application "System Events" to tell appearance preferences to get brightness' 2>/dev/null)
-            if [ -n "$brightness" ]; then
-                brightness=$(echo "scale=0; $brightness * 100" | bc -l 2>/dev/null || echo "")
+            local dict max val
+            # Isolate the brightness dict (not BrightnessMilliNits / rawBrightness)
+            dict=$(ioreg -l 2>/dev/null | grep -o '"brightness"={"min"=[0-9]*,"max"=[0-9]*,"value"=[0-9]*}' | head -1)
+            if [ -n "$dict" ]; then
+                max=$(echo "$dict" | grep -o '"max"=[0-9]*' | cut -d= -f2)
+                val=$(echo "$dict" | grep -o '"value"=[0-9]*' | cut -d= -f2)
+                if [ -n "$max" ] && [ "$max" -gt 0 ] && [ -n "$val" ]; then
+                    brightness=$((val * 100 / max))
+                fi
             fi
         fi
 
-        # Another fallback using ioreg
+        # Last resort: rawBrightness with its own max (often 2047 on Apple Silicon)
         if [ -z "$brightness" ]; then
-            local raw=$(ioreg -c AppleBacklightDisplay 2>/dev/null | grep -i "brightness" | head -1 | grep -o '"brightness"=[0-9]*' | cut -d= -f2)
-            if [ -n "$raw" ]; then
-                # This is typically 0-1024, convert to percentage
-                brightness=$((raw * 100 / 1024))
+            local dict max val
+            dict=$(ioreg -l 2>/dev/null | grep -o '"rawBrightness"={"min"=[0-9]*,"max"=[0-9]*,"value"=[0-9]*}' | head -1)
+            if [ -n "$dict" ]; then
+                max=$(echo "$dict" | grep -o '"max"=[0-9]*' | cut -d= -f2)
+                val=$(echo "$dict" | grep -o '"value"=[0-9]*' | cut -d= -f2)
+                if [ -n "$max" ] && [ "$max" -gt 0 ] && [ -n "$val" ]; then
+                    brightness=$((val * 100 / max))
+                fi
             fi
         fi
     else
@@ -65,7 +78,8 @@ module_brightness() {
         return
     fi
 
-    local brightness_int=$(printf "%.0f" "$brightness" 2>/dev/null || echo "0")
+    local brightness_int
+    brightness_int=$(printf "%.0f" "$brightness" 2>/dev/null || echo "0")
 
     local result="$icon"
 
