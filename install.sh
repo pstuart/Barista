@@ -1972,6 +1972,7 @@ do_install() {
     echo ""
     echo "Configuration:"
     echo "  Edit:     $BARISTA_DIR/barista.conf"
+    echo "  Or run:   $BARISTA_DIR/barista.sh config"
     echo "  Modules:  $BARISTA_DIR/modules/"
     echo ""
     echo "Per-directory overrides:"
