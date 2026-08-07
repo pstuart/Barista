@@ -639,5 +639,50 @@ main() {
     echo "$output"
 }
 
+# =============================================================================
+# CLI subcommands (when not invoked as Claude Code statusline via stdin JSON)
+# =============================================================================
+# Claude Code invokes this script with no args and JSON on stdin. Subcommands
+# are only taken when $1 is present so statusline rendering stays unchanged.
+barista_cli_dispatch() {
+    case "${1:-}" in
+        config|--config)
+            shift
+            # shellcheck disable=SC1091
+            . "$SCRIPT_DIR/lib/config-tui.sh"
+            barista_config_main "$@"
+            exit $?
+            ;;
+        version|--version|-v)
+            if [ -f "$SCRIPT_DIR/VERSION" ]; then
+                tr -d '[:space:]' < "$SCRIPT_DIR/VERSION"
+                echo
+            else
+                echo "unknown"
+            fi
+            exit 0
+            ;;
+        help|--help|-h)
+            cat <<EOF
+Barista — modular Claude Code statusline
+
+Usage:
+  barista.sh                 # statusline (JSON on stdin; Claude Code default)
+  barista.sh config […]      # post-install config TUI / CLI (see --help)
+  barista.sh version         # print VERSION
+  barista.sh help            # this message
+
+Install / update: ./install.sh --help
+Homebrew: brew tap pstuart/tap && brew install barista
+EOF
+            exit 0
+            ;;
+    esac
+}
+
+if [ "$#" -gt 0 ]; then
+    barista_cli_dispatch "$@"
+fi
+
 # Run main function
 main

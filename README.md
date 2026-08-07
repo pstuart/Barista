@@ -5,7 +5,7 @@
 A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that brews real-time development information including context usage, rate limits, costs, and more.
 
 ![Barista](https://img.shields.io/badge/Barista-Claude_Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.7.0-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.8.0-green?style=for-the-badge)
 ![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
@@ -13,7 +13,14 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
   <img src="demo.gif" alt="Barista Demo" width="800">
 </p>
 
-## What's New in v1.7.0 🆕
+## What's New in v1.8.0 🆕
+
+- **`barista config` TUI** - Reconfigure modules, theme, and WAN privacy post-install without re-running the installer (`barista config`, `--show`, `--set`, `--toggle`)
+- **Homebrew install** - `brew tap pstuart/tap && brew install barista` (primary path; `git clone` still supported)
+
+### v1.7.0
+
+
 
 - **Smart 429 Backoff** - Respects `Retry-After` headers for precise backoff timing instead of fixed delays
 - **Unknown Module Fix** - Installer no longer errors on unrecognized module names in config
@@ -162,7 +169,19 @@ brew install jq
 
 ## Installation
 
-### Quick Brew
+### Homebrew (recommended)
+
+```bash
+brew tap pstuart/tap
+brew install barista
+# Point Claude Code at the formula, or run the bundled installer once:
+# $(brew --prefix)/opt/barista/libexec/install.sh --defaults
+barista config   # post-install module/theme TUI
+```
+
+Formula: [pstuart/homebrew-tap](https://github.com/pstuart/homebrew-tap). From-source install remains fully supported.
+
+### From source
 
 ```bash
 # Clone the repo
@@ -249,6 +268,20 @@ The installer lets you customize:
 | **Separators** | \| Pipe, ║ Double, › Arrow, • Bullet, : Colon |
 | **Color Themes** | Default, Minimal, Vibrant, Monochrome |
 | **Display Mode** | Normal, Compact, Verbose |
+
+### Runtime config (`barista config`)
+
+After install, reconfigure without re-running the installer:
+
+```bash
+barista config                 # interactive TUI (modules, theme, WAN privacy)
+barista config --show          # print current settings
+barista config --toggle weather
+barista config --set COLOR_THEME=minimal
+barista config --project       # edit ./.barista.conf in the current directory
+```
+
+Saves to `$CLAUDE_CONFIG_DIR/barista.conf` (default `~/.claude/barista.conf`). Cancel leaves the file untouched.
 
 ### Configuration Files
 
@@ -396,7 +429,9 @@ SEPARATOR=" • "
 
 ```
 ~/.claude/barista/
-├── barista.sh          # Main entry point
+├── barista.sh          # Main entry point (+ config/version CLI)
+├── lib/
+│   └── config-tui.sh   # Runtime config TUI (`barista config`)
 ├── barista.conf        # Configuration file
 ├── VERSION             # Version tracking
 └── modules/
