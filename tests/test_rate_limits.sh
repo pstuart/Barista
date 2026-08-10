@@ -1,7 +1,8 @@
 #!/bin/bash
 # ABOUTME: Tests for modules/rate-limits.sh -- _parse_reset_epoch (the #38 resets_at
 # ABOUTME: ISO-8601 -> epoch parser that works on BSD/macOS and GNU/Linux date) and
-# ABOUTME: _check_backoff (the post-429 cooldown-state file reader).
+# ABOUTME: credential-file permission enforcement and _check_backoff (the post-429
+# ABOUTME: cooldown-state file reader).
 # ABOUTME: Run with: bash tests/test_rate_limits.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -44,6 +45,38 @@ assert_eq "unparseable input falls back to 0"          "0"          "$(_parse_re
 # Load utils.sh too -- _check_backoff needs _file_mtime + CACHE_DIR from it.
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/modules/utils.sh"
+
+# -----------------------------------------------------------------------------
+# _get_claude_token / _credentials_file_is_private
+# A plaintext OAuth token may only be read from an owner-only credentials file.
+# Stub `security` so a rejected file can never fall through to the developer's
+# real macOS Keychain while this test runs.
+# -----------------------------------------------------------------------------
+echo "=== Credential Permission Tests ==="
+TOKEN_CONFIG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/barista-token-test.XXXXXX")"
+TOKEN_BIN="$TOKEN_CONFIG_DIR/bin"
+mkdir -p "$TOKEN_BIN"
+printf '#!/bin/sh\nexit 1\n' > "$TOKEN_BIN/security"
+chmod 700 "$TOKEN_BIN/security"
+printf '{"claudeAiOauth":{"accessToken":"permission-test-token"}}\n' > "$TOKEN_CONFIG_DIR/.credentials.json"
+
+chmod 600 "$TOKEN_CONFIG_DIR/.credentials.json"
+assert_eq "owner-only credentials file is accepted" \
+    "permission-test-token" \
+    "$(CLAUDE_CONFIG_DIR="$TOKEN_CONFIG_DIR" PATH="$TOKEN_BIN:$PATH" _get_claude_token)"
+
+chmod 640 "$TOKEN_CONFIG_DIR/.credentials.json"
+assert_eq "group-readable credentials file is rejected" \
+    "" \
+    "$(CLAUDE_CONFIG_DIR="$TOKEN_CONFIG_DIR" PATH="$TOKEN_BIN:$PATH" _get_claude_token)"
+
+chmod 604 "$TOKEN_CONFIG_DIR/.credentials.json"
+assert_eq "world-readable credentials file is rejected" \
+    "" \
+    "$(CLAUDE_CONFIG_DIR="$TOKEN_CONFIG_DIR" PATH="$TOKEN_BIN:$PATH" _get_claude_token)"
+
+rm -f "$TOKEN_CONFIG_DIR/.credentials.json" "$TOKEN_BIN/security"
+rmdir "$TOKEN_BIN" "$TOKEN_CONFIG_DIR" 2>/dev/null
 
 # Sandbox CACHE_DIR so the suite never touches the real ~/.claude/barista-cache.
 TEST_BASE="$(mktemp -d "${TMPDIR:-/tmp}/barista-backoff-test.XXXXXX")"
