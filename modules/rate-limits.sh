@@ -27,14 +27,37 @@
 #   1. ~/.claude/.credentials.json — used on Windows and some Linux setups
 #   2. macOS Keychain via `security` — used on macOS
 # Handles both plain JSON and hex-encoded formats (macOS 15+ / recent Claude Code)
+_credentials_file_is_private() {
+    local file="$1"
+    local mode=""
+
+    # Use the platform stat directly on macOS so a Homebrew GNU stat earlier in
+    # PATH cannot reinterpret BSD flags. If mode discovery fails, fail closed.
+    if [[ "${OSTYPE:-}" == darwin* ]]; then
+        mode=$(/usr/bin/stat -f %Lp "$file" 2>/dev/null) || return 1
+    else
+        mode=$(stat -c %a "$file" 2>/dev/null) || return 1
+    fi
+
+    case "$mode" in
+        ""|*[!0-7]*) return 1 ;;
+        *00) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 _get_claude_token() {
     local creds_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.credentials.json"
     if [ -f "$creds_file" ]; then
-        local file_token
-        file_token=$(jq -r '.claudeAiOauth.accessToken // empty' "$creds_file" 2>/dev/null)
-        if [ -n "$file_token" ]; then
-            echo "$file_token"
-            return
+        if _credentials_file_is_private "$creds_file"; then
+            local file_token
+            file_token=$(jq -r '.claudeAiOauth.accessToken // empty' "$creds_file" 2>/dev/null)
+            if [ -n "$file_token" ]; then
+                echo "$file_token"
+                return
+            fi
+        else
+            log_debug "rate-limits: refusing credentials file with group or other permissions"
         fi
     fi
 
