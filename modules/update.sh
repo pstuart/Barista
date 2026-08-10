@@ -82,20 +82,30 @@ _check_barista_update() {
     fi
 }
 
+# Return the leading numeric portion of a semantic-version component.
+# Release tags can include suffixes such as "0-rc1"; keeping only the leading
+# digits makes the numeric comparison safe without trying to order prereleases.
+_version_numeric_component() {
+    local value="${1:-}"
+    value="${value%%[!0-9]*}"
+    printf '%s\n' "${value:-0}"
+}
+
 # Compare two semver strings: returns 0 if $1 > $2
 _version_gt() {
     local v1="$1" v2="$2"
-    # Split on dots and compare numerically
+    # Split on dots and compare the numeric prefix of each component. Bash's
+    # arithmetic parser rejects values such as "0-rc1", so sanitize first.
     local v1_major v1_minor v1_patch v2_major v2_minor v2_patch
-    v1_major=$(echo "$v1" | cut -d. -f1)
-    v1_minor=$(echo "$v1" | cut -d. -f2)
-    v1_patch=$(echo "$v1" | cut -d. -f3)
-    v2_major=$(echo "$v2" | cut -d. -f1)
-    v2_minor=$(echo "$v2" | cut -d. -f2)
-    v2_patch=$(echo "$v2" | cut -d. -f3)
+    IFS=. read -r v1_major v1_minor v1_patch _ <<< "$v1"
+    IFS=. read -r v2_major v2_minor v2_patch _ <<< "$v2"
 
-    v1_major=$((v1_major + 0)); v1_minor=$((v1_minor + 0)); v1_patch=$((v1_patch + 0))
-    v2_major=$((v2_major + 0)); v2_minor=$((v2_minor + 0)); v2_patch=$((v2_patch + 0))
+    v1_major=$(_version_numeric_component "$v1_major")
+    v1_minor=$(_version_numeric_component "$v1_minor")
+    v1_patch=$(_version_numeric_component "$v1_patch")
+    v2_major=$(_version_numeric_component "$v2_major")
+    v2_minor=$(_version_numeric_component "$v2_minor")
+    v2_patch=$(_version_numeric_component "$v2_patch")
 
     if [ "$v1_major" -gt "$v2_major" ]; then return 0; fi
     if [ "$v1_major" -lt "$v2_major" ]; then return 1; fi

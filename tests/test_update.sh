@@ -22,7 +22,7 @@ assert_eq() {
     fi
 }
 
-# Load the module under test. _version_gt is pure (cut + arithmetic, no I/O).
+# Load the module under test. _version_gt is pure and performs no external I/O.
 . "$SCRIPT_DIR/modules/update.sh"
 
 # _version_gt <v1> <v2> -> rc 0 when v1 > v2, rc 1 otherwise.
@@ -44,6 +44,12 @@ assert_gt "patch numeric: 1.0.10 > 1.0.9"        "1.0.10" "1.0.9"  "0"
 assert_gt "patch: 1.7.0 is not > 1.7.1"          "1.7.0"  "1.7.1"  "1"
 # Equal versions are NOT greater (so the update prompt does not fire on an equal remote)
 assert_gt "equal is not greater: 1.7.0 vs 1.7.0" "1.7.0"  "1.7.0"  "1"
+# Prerelease/build suffixes must never reach Bash's arithmetic parser. The
+# comparator intentionally compares only the numeric major/minor/patch tuple.
+assert_gt "prerelease patch compares safely above older release" "1.8.0-rc1" "1.7.9" "0"
+assert_gt "prerelease suffix is equal to its numeric release"     "1.8.0-rc1" "1.8.0" "1"
+assert_gt "build metadata does not change numeric precedence"     "2.1.3+45"  "2.1.3" "1"
+assert_gt "nonnumeric patch is treated as zero"                   "1.8.x"     "1.7.9" "0"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
