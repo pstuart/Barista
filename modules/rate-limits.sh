@@ -127,8 +127,7 @@ _get_claude_usage() {
 
     # Check if we're in backoff period from a previous 429
     local backoff_remaining
-    backoff_remaining=$(_check_backoff)
-    if [ $? -eq 0 ]; then
+    if backoff_remaining=$(_check_backoff); then
         log_debug "rate-limits: in backoff period (${backoff_remaining}s remaining), skipping API call"
         return 1
     fi
@@ -263,8 +262,8 @@ module_rate_limits() {
     local backoff_remaining=0
 
     # Check if we're in API backoff (429 cooldown)
-    backoff_remaining=$(_check_backoff)
-    if [ $? -eq 0 ]; then
+    local backoff_remaining
+    if backoff_remaining=$(_check_backoff); then
         in_backoff=true
     fi
 

@@ -518,8 +518,13 @@ main() {
 
         # Check if module is enabled
         if is_module_enabled "$module"; then
+            # Wrap module execution in a subshell with error handling.
+            # This prevents a single module crash from killing the entire statusline.
             local output
-            output=$(run_module "$module" "$current_dir" "$input")
+            output=$(run_module "$module" "$current_dir" "$input" 2>&1) || {
+                log_debug "Module $module failed with exit code $?"
+                output=""
+            }
 
             if [ -n "$output" ]; then
                 if [ -n "$sections" ]; then
