@@ -236,7 +236,7 @@ Barista automatically checks for updates when you run the installer. You can als
 1. **Copy barista to your Claude directory:**
    ```bash
    CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-   cp -r barista "$CLAUDE_DIR/barista"
+   cp -r . "$CLAUDE_DIR/barista"
    chmod +x "$CLAUDE_DIR/barista/barista.sh"
    ```
 
