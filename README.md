@@ -332,7 +332,7 @@ No other configuration changes are needed.
 
 #### Per-Directory Overrides
 
-Create `.barista.conf` in any project directory to customize the statusline for that project:
+Create `.barista.conf` in any project directory to customize the statusline for that project. That file is **never sourced** — only allowlisted `KEY=VALUE` lines are applied (`load_config_safe`).
 
 ```bash
 # ~/myproject/.barista.conf
@@ -344,9 +344,9 @@ MODULE_ORDER="directory,context,git,model"
 
 Configuration is loaded in order of precedence:
 1. Built-in defaults
-2. `barista.conf` (in script directory)
-3. `$CLAUDE_CONFIG_DIR/barista.conf` (user overrides, defaults to `~/.claude/`)
-4. `.barista.conf` (per-directory overrides)
+2. `barista.conf` (in script directory — sourced as bash after a writable check)
+3. `$CLAUDE_CONFIG_DIR/barista.conf` (user overrides, defaults to `~/.claude/` — also sourced)
+4. `.barista.conf` (per-directory KEY=VALUE allowlist; never sourced)
 
 ### Full Configuration Options
 
@@ -506,8 +506,9 @@ MODULE_ORDER="...,mycustom,..."
 - Try a different terminal emulator if issues persist
 
 ### Config file not loading
-- Barista refuses to source a `barista.conf` or `.barista.conf` that is group- or world-writable (it's executed as bash, so a writable config is a code-execution vector)
-- Fix with `chmod 644 barista.conf`
+- Packaged `barista.conf` and `$CLAUDE_CONFIG_DIR/barista.conf` are sourced as bash. Barista refuses to source either if they are group- or world-writable.
+- Fix the **user** file with `chmod 600 "$CLAUDE_CONFIG_DIR/barista.conf"` (or `644` if you want it world-readable but not writable).
+- Per-directory `.barista.conf` is never sourced. `chmod` on that file does not make it executable.
 
 ### Testing manually
 ```bash
