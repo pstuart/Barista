@@ -73,10 +73,20 @@ BACKUP_MANIFEST="$BACKUP_DIR/manifest.json"
 # VERSION MANAGEMENT
 # =============================================================================
 GITHUB_REPO="pstuart/Barista"
-GITHUB_RAW_URL="https://raw.githubusercontent.com/$GITHUB_REPO/main"
 LOCAL_VERSION=""
 REMOTE_VERSION=""
 UPDATE_AVAILABLE="false"
+
+# Homebrew formula pins tagged tarballs; never overwrite Cellar/opt via --update.
+_is_homebrew_prefix() {
+    local dir="${1:-$SCRIPT_DIR}"
+    case "$dir" in
+        */Cellar/barista/*|*/opt/barista|*/opt/barista/*)
+            return 0
+            ;;
+    esac
+    return 1
+}
 
 # Read local version
 get_local_version() {
@@ -90,43 +100,72 @@ get_local_version() {
     echo "$LOCAL_VERSION"
 }
 
-# Check GitHub for latest version
+# Latest published GitHub release (same source as modules/update.sh and brew livecheck).
 check_remote_version() {
     if ! command -v curl &> /dev/null; then
         return 1
     fi
 
-    # Fetch remote VERSION file (timeout 5 seconds, HTTPS only, limited redirects)
-    REMOTE_VERSION=$(curl -s --connect-timeout 5 --max-redirs 3 --proto =https "$GITHUB_RAW_URL/VERSION" 2>/dev/null | tr -d '[:space:]')
+    local response http_code body tag
+    response=$(curl -s --connect-timeout 5 --max-time 8 --max-redirs 3 --proto =https \
+        -w "\n%{http_code}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null)
 
-    if [ -z "$REMOTE_VERSION" ] || [[ ! "$REMOTE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [ "$http_code" != "200" ] || [ -z "$body" ]; then
         return 1
     fi
 
+    if command -v jq &>/dev/null; then
+        tag=$(echo "$body" | jq -r '.tag_name // empty' 2>/dev/null)
+    else
+        tag=$(echo "$body" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    fi
+    tag="${tag#v}"
+    tag=$(echo "$tag" | tr -d '[:space:]')
+
+    if [ -z "$tag" ] || [[ ! "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+        return 1
+    fi
+
+    # Strip prerelease/build from the displayed pin; comparator sanitizes too.
+    REMOTE_VERSION="${tag%%[-+]*}"
     echo "$REMOTE_VERSION"
 }
 
-# Compare semantic versions (returns 0 if v1 < v2)
+# Leading digits of one semver component (safe for bash arithmetic).
+_version_numeric_component() {
+    local value="${1:-}"
+    value="${value%%[!0-9]*}"
+    printf '%s\n' "${value:-0}"
+}
+
+# Compare semantic versions (returns 0 if v1 < v2). Matches modules/update.sh
+# _version_gt inverted: numeric major/minor/patch only; suffixes ignored.
 version_lt() {
     local v1="$1"
     local v2="$2"
+    local v1_major v1_minor v1_patch v2_major v2_minor v2_patch
 
-    # Split versions into arrays
-    local IFS='.'
-    read -ra V1 <<< "$v1"
-    read -ra V2 <<< "$v2"
+    IFS=. read -r v1_major v1_minor v1_patch _ <<< "$v1"
+    IFS=. read -r v2_major v2_minor v2_patch _ <<< "$v2"
 
-    # Compare each component
-    for i in 0 1 2; do
-        local n1="${V1[$i]:-0}"
-        local n2="${V2[$i]:-0}"
-        if [ "$n1" -lt "$n2" ] 2>/dev/null; then
-            return 0
-        elif [ "$n1" -gt "$n2" ] 2>/dev/null; then
-            return 1
-        fi
-    done
-    return 1  # Equal versions
+    v1_major=$(_version_numeric_component "$v1_major")
+    v1_minor=$(_version_numeric_component "$v1_minor")
+    v1_patch=$(_version_numeric_component "$v1_patch")
+    v2_major=$(_version_numeric_component "$v2_major")
+    v2_minor=$(_version_numeric_component "$v2_minor")
+    v2_patch=$(_version_numeric_component "$v2_patch")
+
+    if [ "$v1_major" -lt "$v2_major" ]; then return 0; fi
+    if [ "$v1_major" -gt "$v2_major" ]; then return 1; fi
+    if [ "$v1_minor" -lt "$v2_minor" ]; then return 0; fi
+    if [ "$v1_minor" -gt "$v2_minor" ]; then return 1; fi
+    if [ "$v1_patch" -lt "$v2_patch" ]; then return 0; fi
+    return 1
 }
 
 # Check for updates
@@ -221,39 +260,58 @@ interactive_update_check() {
     return 0
 }
 
-# Perform the update
+# Test seams: tests redefine these to record argv / skip network.
+_reexec_installer() {
+    exec "$SCRIPT_DIR/install.sh" "$@"
+}
+
+_barista_git() {
+    git "$@"
+}
+
+# Perform the update from the latest GitHub *release* tag (not unpinned main).
 do_update() {
     print_info "Updating Barista..."
 
+    if _is_homebrew_prefix "$SCRIPT_DIR"; then
+        print_error "This install is Homebrew-managed. Use: brew upgrade barista"
+        return 1
+    fi
+
+    if [ -z "$REMOTE_VERSION" ]; then
+        if ! check_remote_version >/dev/null; then
+            print_error "Could not resolve the latest GitHub release."
+            return 1
+        fi
+    fi
+
+    local tag="v${REMOTE_VERSION}"
+
     # Check if we're in a git repo
     if [ -d "$SCRIPT_DIR/.git" ]; then
-        print_info "Pulling latest changes from GitHub..."
+        print_info "Checking out release $tag..."
         cd "$SCRIPT_DIR" || { print_error "Could not cd to $SCRIPT_DIR"; return 1; }
 
-        # Stash any local changes
-        git stash -q 2>/dev/null
-
-        # Pull latest
-        if git pull origin main 2>/dev/null; then
+        _barista_git stash -q 2>/dev/null
+        if _barista_git fetch origin --tags --force 2>/dev/null \
+            && _barista_git checkout -q "$tag" 2>/dev/null; then
             print_success "Updated to version $REMOTE_VERSION"
             echo ""
             print_info "Restarting installer with new version..."
             echo ""
-
-            # Re-execute the installer
-            exec "$SCRIPT_DIR/install.sh" "$@"
+            _reexec_installer "$@"
         else
-            print_error "Git pull failed. Try manually: cd $SCRIPT_DIR && git pull"
+            print_error "Could not check out $tag. Try: cd $SCRIPT_DIR && git fetch --tags && git checkout $tag"
             return 1
         fi
     else
-        # Not a git repo - download via curl
-        print_info "Downloading latest version..."
+        print_info "Downloading release $tag..."
 
-        local tmp_dir=$(mktemp -d)
-        local zip_url="https://github.com/$GITHUB_REPO/archive/refs/heads/main.zip"
+        local tmp_dir
+        tmp_dir=$(mktemp -d)
+        local zip_url="https://github.com/$GITHUB_REPO/archive/refs/tags/${tag}.zip"
+        local extract_dir="Barista-${REMOTE_VERSION}"
 
-        # Validate URL is from expected GitHub origin (prevent open-redirect abuse)
         case "$zip_url" in
             https://github.com/*)
                 ;;
@@ -264,10 +322,7 @@ do_update() {
                 ;;
         esac
 
-        # --max-redirs 3: limit redirect following to prevent redirect chains
-        # --proto =https: only allow HTTPS (no downgrade to HTTP)
         if curl -sL --max-redirs 3 --proto =https "$zip_url" -o "$tmp_dir/barista.zip" 2>/dev/null; then
-            # Validate the downloaded file is actually a ZIP archive
             if ! unzip -tq "$tmp_dir/barista.zip" >/dev/null 2>&1; then
                 print_error "Downloaded file is not a valid ZIP archive. Aborting update."
                 rm -rf "$tmp_dir"
@@ -277,17 +332,28 @@ do_update() {
             cd "$tmp_dir" || { print_error "Could not cd to temp dir"; rm -rf "$tmp_dir"; return 1; }
             unzip -q barista.zip 2>/dev/null
 
-            if [ -d "Barista-main" ]; then
-                # Verify essential files exist in the download
-                if [ ! -f "Barista-main/barista.sh" ] || [ ! -f "Barista-main/VERSION" ]; then
+            # GitHub source zips use "Barista-<tag without v>/"
+            if [ ! -d "$extract_dir" ] && [ -d "Barista-${tag}" ]; then
+                extract_dir="Barista-${tag}"
+            fi
+
+            if [ -d "$extract_dir" ]; then
+                if [ ! -f "$extract_dir/barista.sh" ] || [ ! -f "$extract_dir/VERSION" ]; then
                     print_error "Downloaded archive is missing essential files. Aborting update."
                     rm -rf "$tmp_dir"
                     return 1
                 fi
 
-                # Backup current and replace
+                local archive_ver
+                archive_ver=$(tr -d '[:space:]' < "$extract_dir/VERSION")
+                if [ "$archive_ver" != "$REMOTE_VERSION" ]; then
+                    print_error "Archive VERSION ($archive_ver) does not match release $REMOTE_VERSION."
+                    rm -rf "$tmp_dir"
+                    return 1
+                fi
+
                 cp -r "$SCRIPT_DIR" "$SCRIPT_DIR.backup.$$"
-                cp -r Barista-main/* "$SCRIPT_DIR/"
+                cp -r "$extract_dir"/* "$SCRIPT_DIR/"
                 rm -rf "$SCRIPT_DIR.backup.$$"
 
                 print_success "Updated to version $REMOTE_VERSION"
@@ -295,14 +361,13 @@ do_update() {
                 print_info "Restarting installer with new version..."
                 echo ""
 
-                # Cleanup and re-execute
                 rm -rf "$tmp_dir"
-                exec "$SCRIPT_DIR/install.sh" "$@"
+                _reexec_installer "$@"
             fi
         fi
 
         rm -rf "$tmp_dir"
-        print_error "Update failed. Please update manually from GitHub."
+        print_error "Update failed. Please update manually from a GitHub release."
         return 1
     fi
 }
@@ -2187,4 +2252,6 @@ main() {
     esac
 }
 
-main "$@"
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    main "$@"
+fi
