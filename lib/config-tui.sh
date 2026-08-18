@@ -117,10 +117,12 @@ _cfg_module_name_from_var() {
 }
 
 # Values that would break KEY="value" or inject when the user config is sourced.
+# Allow `|` so SEPARATOR=" | " (the shipped default) can be --set.
+# Reject glob chars so MODULE_ORDER=* cannot expand cwd names on toggle.
 _cfg_value_is_safe() {
     local val="$1"
     case "$val" in
-        *\`*|*\$*|*\;*|*\|*|*\&*|*\>*|*\<*|*\"*|*\'*|*\\*|*\(*|*\)*)
+        *\`*|*\$*|*\;*|*\&*|*\>*|*\<*|*\"*|*\'*|*\\*|*\(*|*\)*|*'*'*|*'?'*|*'['*)
             return 1
             ;;
     esac
@@ -133,6 +135,7 @@ _cfg_value_is_safe() {
 _cfg_assign() {
     local key="$1" val="$2"
     _cfg_is_allowed_key "$key" || return 1
+    _cfg_value_is_safe "$val" || return 1
     printf -v "$key" '%s' "$val"
 }
 
@@ -284,8 +287,10 @@ _cfg_order_add() {
 }
 
 _cfg_order_remove() {
-    local name="$1" new="" m old_ifs
+    local name="$1" new="" m old_ifs had_noglob=""
     old_ifs="$IFS"
+    case "$-" in *f*) had_noglob=1 ;; esac
+    set -f
     IFS=','
     for m in ${MODULE_ORDER:-}; do
         m="${m#"${m%%[![:space:]]*}"}"
@@ -299,6 +304,11 @@ _cfg_order_remove() {
         fi
     done
     IFS="$old_ifs"
+    if [ -n "$had_noglob" ]; then
+        set -f
+    else
+        set +f
+    fi
     MODULE_ORDER="$new"
 }
 
@@ -316,7 +326,7 @@ _cfg_write_conf() {
     local path="$1"
     local rebuild_order="${2:-0}"
     local extra_key="${3:-}"
-    local dir tmp extras line key
+    local dir tmp extras line key extra_val
     dir=$(dirname "$path")
     mkdir -p "$dir" || return 1
 
@@ -333,16 +343,25 @@ _cfg_write_conf() {
             case "$line" in
                 *=*)
                     key="${line%%=*}"
+                    extra_val="${line#*=}"
                     case "$key" in
                         *[!A-Za-z0-9_]*|'') continue ;;
                     esac
+                    if ! _cfg_is_allowed_key "$key"; then
+                        continue
+                    fi
                     if _cfg_is_tui_owned_key "$key"; then
                         continue
                     fi
                     if [ -n "$extra_key" ] && [ "$key" = "$extra_key" ]; then
                         continue
                     fi
-                    extras="${extras}${line}"$'\n'
+                    case "$extra_val" in
+                        \"*\") extra_val="${extra_val#\"}"; extra_val="${extra_val%\"}" ;;
+                        \'*\') extra_val="${extra_val#\'}"; extra_val="${extra_val%\'}" ;;
+                    esac
+                    _cfg_value_is_safe "$extra_val" || continue
+                    extras="${extras}${key}=\"$(_cfg_shell_quote "$extra_val")\""$'\n'
                     ;;
             esac
         done < "$path"
@@ -377,7 +396,8 @@ _cfg_write_conf() {
         done
         echo ""
         echo "MODULE_ORDER=\"$(_cfg_shell_quote "${MODULE_ORDER}")\""
-        if [ -n "$extra_key" ] && ! _cfg_is_tui_owned_key "$extra_key"; then
+        if [ -n "$extra_key" ] && ! _cfg_is_tui_owned_key "$extra_key" \
+            && _cfg_is_allowed_key "$extra_key" && _cfg_value_is_safe "${!extra_key}"; then
             echo ""
             echo "${extra_key}=\"$(_cfg_shell_quote "${!extra_key}")\""
         fi
