@@ -171,15 +171,34 @@ brew install jq
 
 ### Homebrew (recommended)
 
+The tap formula does **not** ship `install.sh`. After `brew install barista`, configure Claude Code yourself and use `brew upgrade` for updates.
+
 ```bash
 brew tap pstuart/tap
 brew install barista
-# Point Claude Code at the formula, or run the bundled installer once:
-# $(brew --prefix)/opt/barista/libexec/install.sh --defaults
-barista config   # post-install module/theme TUI
 ```
 
-Formula: [pstuart/homebrew-tap](https://github.com/pstuart/homebrew-tap). From-source install remains fully supported.
+Set `statusLine.command` in `~/.claude/settings.json` to the **opt** path (it follows upgrades):
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "$(brew --prefix)/opt/barista/libexec/barista.sh"
+  }
+}
+```
+
+Replace `$(brew --prefix)` with the output of that command (Homebrew does not expand it inside JSON). Typical values: `/opt/homebrew` (Apple Silicon) or `/usr/local` (Intel).
+
+Then:
+
+```bash
+barista config    # module/theme TUI
+brew upgrade barista
+```
+
+Formula: [pstuart/homebrew-tap](https://github.com/pstuart/homebrew-tap). Caveats match this README: `install.sh` is from-source only.
 
 ### From source
 
@@ -212,10 +231,11 @@ The interactive installer features:
 ./install.sh --no-emoji      # Install without emojis (ASCII mode)
 ./install.sh --no-color      # Install without colors
 
-# Updates
-./install.sh --check-update  # Check if a newer version is available
-./install.sh --update        # Download and install the latest version
-./install.sh --version       # Show current version
+# Updates (from-source / git clone only — not shipped by Homebrew)
+./install.sh --check-update       # Check the latest GitHub *release* tag
+./install.sh --update             # Install that tagged release (not floating main)
+./install.sh --skip-update-check  # Skip the automatic update check during install
+./install.sh --version            # Show current version
 
 # Other
 ./install.sh --uninstall     # Uninstall and restore previous statusline
@@ -224,12 +244,11 @@ The interactive installer features:
 
 ### Staying Up to Date
 
-Barista automatically checks for updates when you run the installer. You can also manually check:
+**Homebrew:** `brew upgrade barista`. The formula pins a tagged tarball (`vX.Y.Z` + sha256). Do not run `./install.sh --update` against a Cellar/opt prefix — the installer refuses that path so a checksum-pinned brew install is not overwritten with a zip.
 
-```bash
-./install.sh --check-update   # Check for updates
-./install.sh --update         # Update to latest version
-```
+**From source (git clone or a copied tree):** `./install.sh --check-update` and `./install.sh --update` use GitHub `releases/latest`, the same tag source as the statusline `update` module and the Homebrew `livecheck`. They do **not** track unpinned `main`.
+
+Barista also checks for a newer *release* when you run the from-source installer (skip with `--skip-update-check`).
 
 ### Manual Brew
 
@@ -502,6 +521,10 @@ bash tests/test_utils.sh    # or any other tests/test_*.sh
 ```
 
 ## Uninstall
+
+**Homebrew:** `brew uninstall barista` (then remove `statusLine` from `settings.json` if you added it).
+
+**From source:**
 
 ```bash
 ./install.sh --uninstall
