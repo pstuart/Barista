@@ -554,6 +554,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 **Enjoy your fresh brew!** ☕
 
-*Barista v1.7.0 - Because your Claude Code deserves a great statusline.*
+*Barista v1.8.0 - Because your Claude Code deserves a great statusline.*
 
 </div>

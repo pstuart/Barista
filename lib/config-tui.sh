@@ -62,10 +62,93 @@ _cfg_module_var() {
     echo "MODULE_$(echo "$1" | tr '[:lower:]-' '[:upper:]_')"
 }
 
+# --set / assign allowlist: same prefixes as barista.sh load_config_safe.
+_cfg_is_allowed_key() {
+    local key="$1"
+    case "$key" in
+        *[!A-Za-z0-9_]*|'') return 1 ;;
+    esac
+    case "$key" in
+        MODULE_*|SEPARATOR|DISPLAY_MODE|COLOR_THEME|USE_ICONS|\
+        USE_STATUS_INDICATORS|STATUS_STYLE|STATUS_*|\
+        PROGRESS_BAR_*|DIRECTORY_*|CONTEXT_*|GIT_*|\
+        PROJECT_*|MODEL_*|COST_*|RATE_*|TIME_*|\
+        BATTERY_*|CPU_*|MEMORY_*|DISK_*|NETWORK_*|\
+        UPTIME_*|LOAD_*|TEMP_*|BRIGHTNESS_*|PROC_*|\
+        DOCKER_*|NODE_*|WEATHER_*|TIMEZONE_*|SANDBOX_*|\
+        CACHE_MAX_AGE|DEBUG_MODE|LAYOUT_MODE|\
+        TERMINAL_WIDTH|RIGHT_SIDE_RESERVE|VERSION_*|UPDATE_*)
+            return 0
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+# Keys this TUI always rewrites from current shell state.
+_cfg_is_tui_owned_key() {
+    local key="$1" mod_def name var
+    case "$key" in
+        SEPARATOR|DISPLAY_MODE|COLOR_THEME|USE_ICONS|USE_STATUS_INDICATORS|\
+        STATUS_STYLE|LAYOUT_MODE|NETWORK_SHOW_WAN|NETWORK_WAN_REDACT|MODULE_ORDER)
+            return 0
+            ;;
+    esac
+    for mod_def in "${_CFG_ALL_MODULES[@]}"; do
+        name=$(_cfg_mod_name "$mod_def")
+        var=$(_cfg_module_var "$name")
+        if [ "$key" = "$var" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_cfg_module_name_from_var() {
+    local want="$1" mod_def name var
+    for mod_def in "${_CFG_ALL_MODULES[@]}"; do
+        name=$(_cfg_mod_name "$mod_def")
+        var=$(_cfg_module_var "$name")
+        if [ "$var" = "$want" ]; then
+            echo "$name"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Values that would break KEY="value" or inject when the user config is sourced.
+_cfg_value_is_safe() {
+    local val="$1"
+    case "$val" in
+        *\`*|*\$*|*\;*|*\|*|*\&*|*\>*|*\<*|*\"*|*\'*|*\\*|*\(*|*\)*)
+            return 1
+            ;;
+    esac
+    case "$val" in
+        *[[:cntrl:]]*) return 1 ;;
+    esac
+    return 0
+}
+
+_cfg_assign() {
+    local key="$1" val="$2"
+    _cfg_is_allowed_key "$key" || return 1
+    printf -v "$key" '%s' "$val"
+}
+
+_cfg_shell_quote() {
+    local s="$1"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//\$/\\\$}
+    s=${s//\`/\\\`}
+    printf '%s' "$s"
+}
+
 _cfg_module_enabled() {
     local name="$1" var val
     var=$(_cfg_module_var "$name")
-    eval "val=\${$var:-false}"
+    val="${!var:-false}"
     case "$val" in
         true|TRUE|1|yes|YES|on|ON) return 0 ;;
         *) return 1 ;;
@@ -75,7 +158,7 @@ _cfg_module_enabled() {
 _cfg_set_module() {
     local name="$1" state="$2" var
     var=$(_cfg_module_var "$name")
-    eval "$var=\"$state\""
+    printf -v "$var" '%s' "$state"
 }
 
 _cfg_toggle_module() {
@@ -107,9 +190,11 @@ _cfg_resolve_path() {
     esac
 }
 
-# Load defaults + existing conf into shell vars (trusted path only for global)
+# Load defaults + existing conf into shell vars.
+# Project .barista.conf is never sourced (same rule as barista.sh main).
 _cfg_load_into_shell() {
     local path="$1"
+    local scope="${2:-global}"
     # Ship defaults from packaged conf if present
     if [ -n "${SCRIPT_DIR:-}" ] && [ -f "$SCRIPT_DIR/barista.conf" ]; then
         if config_not_group_or_world_writable "$SCRIPT_DIR/barista.conf" 2>/dev/null; then
@@ -118,11 +203,12 @@ _cfg_load_into_shell() {
         fi
     fi
     if [ -f "$path" ]; then
-        if config_not_group_or_world_writable "$path" 2>/dev/null; then
+        if [ "$scope" = "project" ]; then
+            _cfg_load_safe_kv "$path"
+        elif config_not_group_or_world_writable "$path" 2>/dev/null; then
             # shellcheck disable=SC1090
             . "$path"
         else
-            # Safe line parser for project conf or loose perms
             _cfg_load_safe_kv "$path"
         fi
     fi
@@ -132,7 +218,9 @@ _cfg_load_into_shell() {
         name=$(_cfg_mod_name "$mod_def")
         def=$(_cfg_mod_default "$mod_def")
         var=$(_cfg_module_var "$name")
-        eval "[ -n \"\${$var+x}\" ] || $var=\"$def\""
+        if [ -z "${!var+x}" ]; then
+            printf -v "$var" '%s' "$def"
+        fi
     done
     COLOR_THEME="${COLOR_THEME:-default}"
     SEPARATOR="${SEPARATOR:- | }"
@@ -146,28 +234,25 @@ _cfg_load_into_shell() {
 }
 
 _cfg_load_safe_kv() {
+    # Prefer the shared parser in barista.sh (full prefix allowlist, printf -v).
+    if type load_config_safe >/dev/null 2>&1; then
+        load_config_safe "$1"
+        return $?
+    fi
+
     local config_path="$1" line key val
     while IFS= read -r line || [ -n "$line" ]; do
         case "$line" in
             ''|\#*) continue ;;
         esac
-        case "$line" in
-            MODULE_*=*|SEPARATOR=*|DISPLAY_MODE=*|COLOR_THEME=*|USE_ICONS=*|\
-            USE_STATUS_INDICATORS=*|STATUS_STYLE=*|LAYOUT_MODE=*|\
-            NETWORK_SHOW_WAN=*|NETWORK_WAN_REDACT=*)
-                key="${line%%=*}"
-                val="${line#*=}"
-                val="${val#\"}"; val="${val%\"}"
-                val="${val#\'}"; val="${val%\'}"
-                case "$key" in
-                    *[!A-Za-z0-9_]*|'') continue ;;
-                esac
-                case "$val" in
-                    *\$*|\`*|*\(*|*\)*|*\;*|*\|*|*\<*|*\>*) continue ;;
-                esac
-                eval "$key=\"\$val\""
-                ;;
-        esac
+        key="${line%%=*}"
+        [ "$key" = "$line" ] && continue
+        _cfg_is_allowed_key "$key" || continue
+        val="${line#*=}"
+        val="${val#\"}"; val="${val%\"}"
+        val="${val#\'}"; val="${val%\'}"
+        _cfg_value_is_safe "$val" || continue
+        printf -v "$key" '%s' "$val"
     done < "$config_path"
 }
 
@@ -186,14 +271,83 @@ _cfg_rebuild_module_order() {
     MODULE_ORDER="$order"
 }
 
+_cfg_order_add() {
+    local name="$1"
+    case ",${MODULE_ORDER}," in
+        *",${name},"*) return 0 ;;
+    esac
+    if [ -n "${MODULE_ORDER:-}" ]; then
+        MODULE_ORDER="${MODULE_ORDER},${name}"
+    else
+        MODULE_ORDER="$name"
+    fi
+}
+
+_cfg_order_remove() {
+    local name="$1" new="" m old_ifs
+    old_ifs="$IFS"
+    IFS=','
+    for m in ${MODULE_ORDER:-}; do
+        m="${m#"${m%%[![:space:]]*}"}"
+        m="${m%"${m##*[![:space:]]}"}"
+        [ -z "$m" ] && continue
+        [ "$m" = "$name" ] && continue
+        if [ -n "$new" ]; then
+            new="${new},${m}"
+        else
+            new="$m"
+        fi
+    done
+    IFS="$old_ifs"
+    MODULE_ORDER="$new"
+}
+
+_cfg_sync_module_order() {
+    local name="$1"
+    if _cfg_module_enabled "$name"; then
+        _cfg_order_add "$name"
+    else
+        _cfg_order_remove "$name"
+    fi
+}
+
+# $1 path  $2 rebuild_order (1=catalog rebuild, default 0)  $3 extra key to emit
 _cfg_write_conf() {
     local path="$1"
-    local dir
+    local rebuild_order="${2:-0}"
+    local extra_key="${3:-}"
+    local dir tmp extras line key
     dir=$(dirname "$path")
     mkdir -p "$dir" || return 1
-    _cfg_rebuild_module_order
 
-    local tmp
+    if [ "$rebuild_order" = "1" ] || [ -z "${MODULE_ORDER:-}" ]; then
+        _cfg_rebuild_module_order
+    fi
+
+    extras=""
+    if [ -f "$path" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+                ''|\#*) continue ;;
+            esac
+            case "$line" in
+                *=*)
+                    key="${line%%=*}"
+                    case "$key" in
+                        *[!A-Za-z0-9_]*|'') continue ;;
+                    esac
+                    if _cfg_is_tui_owned_key "$key"; then
+                        continue
+                    fi
+                    if [ -n "$extra_key" ] && [ "$key" = "$extra_key" ]; then
+                        continue
+                    fi
+                    extras="${extras}${line}"$'\n'
+                    ;;
+            esac
+        done < "$path"
+    fi
+
     tmp=$(mktemp "${TMPDIR:-/tmp}/barista-conf.XXXXXX") || return 1
 
     {
@@ -201,28 +355,37 @@ _cfg_write_conf() {
         echo "# Edit with: barista config   or hand-edit this file"
         echo ""
         echo "# Display"
-        echo "SEPARATOR=\"${SEPARATOR}\""
-        echo "DISPLAY_MODE=\"${DISPLAY_MODE}\""
-        echo "COLOR_THEME=\"${COLOR_THEME}\""
-        echo "USE_ICONS=\"${USE_ICONS}\""
-        echo "USE_STATUS_INDICATORS=\"${USE_STATUS_INDICATORS}\""
-        echo "STATUS_STYLE=\"${STATUS_STYLE}\""
-        echo "LAYOUT_MODE=\"${LAYOUT_MODE}\""
+        echo "SEPARATOR=\"$(_cfg_shell_quote "${SEPARATOR}")\""
+        echo "DISPLAY_MODE=\"$(_cfg_shell_quote "${DISPLAY_MODE}")\""
+        echo "COLOR_THEME=\"$(_cfg_shell_quote "${COLOR_THEME}")\""
+        echo "USE_ICONS=\"$(_cfg_shell_quote "${USE_ICONS}")\""
+        echo "USE_STATUS_INDICATORS=\"$(_cfg_shell_quote "${USE_STATUS_INDICATORS}")\""
+        echo "STATUS_STYLE=\"$(_cfg_shell_quote "${STATUS_STYLE}")\""
+        echo "LAYOUT_MODE=\"$(_cfg_shell_quote "${LAYOUT_MODE}")\""
         echo ""
         echo "# Network privacy"
-        echo "NETWORK_SHOW_WAN=\"${NETWORK_SHOW_WAN}\""
-        echo "NETWORK_WAN_REDACT=\"${NETWORK_WAN_REDACT}\""
+        echo "NETWORK_SHOW_WAN=\"$(_cfg_shell_quote "${NETWORK_SHOW_WAN}")\""
+        echo "NETWORK_WAN_REDACT=\"$(_cfg_shell_quote "${NETWORK_WAN_REDACT}")\""
         echo ""
         echo "# Modules"
         local mod_def name var val
         for mod_def in "${_CFG_ALL_MODULES[@]}"; do
             name=$(_cfg_mod_name "$mod_def")
             var=$(_cfg_module_var "$name")
-            eval "val=\${$var:-false}"
-            echo "${var}=\"${val}\""
+            val="${!var:-false}"
+            echo "${var}=\"$(_cfg_shell_quote "${val}")\""
         done
         echo ""
-        echo "MODULE_ORDER=\"${MODULE_ORDER}\""
+        echo "MODULE_ORDER=\"$(_cfg_shell_quote "${MODULE_ORDER}")\""
+        if [ -n "$extra_key" ] && ! _cfg_is_tui_owned_key "$extra_key"; then
+            echo ""
+            echo "${extra_key}=\"$(_cfg_shell_quote "${!extra_key}")\""
+        fi
+        if [ -n "$extras" ]; then
+            echo ""
+            echo "# Preserved settings"
+            printf '%s' "$extras"
+        fi
     } > "$tmp" || { rm -f "$tmp"; return 1; }
 
     mv "$tmp" "$path" || { rm -f "$tmp"; return 1; }
@@ -442,19 +605,19 @@ _cfg_run_interactive() {
 
     _cfg_interactive_modules "Core modules" "${_CFG_CORE_MODULES[@]}"
     [ "${_CFG_QUIT_REQUESTED:-0}" = "1" ] && { echo "Cancelled — no changes written."; return 1; }
-    [ "${_CFG_SAVE_REQUESTED:-0}" = "1" ] && { _cfg_write_conf "$path" && echo "Saved $path"; return 0; }
+    [ "${_CFG_SAVE_REQUESTED:-0}" = "1" ] && { _cfg_write_conf "$path" 1 && echo "Saved $path"; return 0; }
 
     _cfg_interactive_modules "System modules" "${_CFG_SYSTEM_MODULES[@]}"
     [ "${_CFG_QUIT_REQUESTED:-0}" = "1" ] && { echo "Cancelled — no changes written."; return 1; }
-    [ "${_CFG_SAVE_REQUESTED:-0}" = "1" ] && { _cfg_write_conf "$path" && echo "Saved $path"; return 0; }
+    [ "${_CFG_SAVE_REQUESTED:-0}" = "1" ] && { _cfg_write_conf "$path" 1 && echo "Saved $path"; return 0; }
 
     _cfg_interactive_modules "Dev modules" "${_CFG_DEV_MODULES[@]}"
     [ "${_CFG_QUIT_REQUESTED:-0}" = "1" ] && { echo "Cancelled — no changes written."; return 1; }
-    [ "${_CFG_SAVE_REQUESTED:-0}" = "1" ] && { _cfg_write_conf "$path" && echo "Saved $path"; return 0; }
+    [ "${_CFG_SAVE_REQUESTED:-0}" = "1" ] && { _cfg_write_conf "$path" 1 && echo "Saved $path"; return 0; }
 
     _cfg_interactive_modules "Extra modules" "${_CFG_EXTRA_MODULES[@]}"
     [ "${_CFG_QUIT_REQUESTED:-0}" = "1" ] && { echo "Cancelled — no changes written."; return 1; }
-    [ "${_CFG_SAVE_REQUESTED:-0}" = "1" ] && { _cfg_write_conf "$path" && echo "Saved $path"; return 0; }
+    [ "${_CFG_SAVE_REQUESTED:-0}" = "1" ] && { _cfg_write_conf "$path" 1 && echo "Saved $path"; return 0; }
 
     _cfg_interactive_choice "Color theme" \
         "default|Standard emoji" \
@@ -492,7 +655,7 @@ _cfg_run_interactive() {
             return 1
             ;;
     esac
-    if _cfg_write_conf "$path"; then
+    if _cfg_write_conf "$path" 1; then
         echo "Saved $path"
         echo "Restart Claude Code (or re-render statusline) to apply."
         return 0
@@ -571,7 +734,7 @@ barista_config_main() {
     fi
 
     # config_not_group_or_world_writable comes from barista.sh
-    _cfg_load_into_shell "$path"
+    _cfg_load_into_shell "$path" "$scope"
 
     case "$action" in
         show)
@@ -584,20 +747,23 @@ barista_config_main() {
                 echo "config: --set requires KEY=VALUE" >&2
                 return 2
             fi
-            case "$key" in
-                *[!A-Za-z0-9_]*|'')
-                    echo "config: invalid key: $key" >&2
-                    return 2
-                    ;;
-            esac
-            case "$val" in
-                *\$*|\`*|*\(*|*\)*|*\;*|*\|*)
-                    echo "config: invalid value characters" >&2
-                    return 2
-                    ;;
-            esac
-            eval "$key=\"\$val\""
-            if _cfg_write_conf "$path"; then
+            if ! _cfg_is_allowed_key "$key"; then
+                echo "config: unknown or invalid key: $key" >&2
+                return 2
+            fi
+            if ! _cfg_value_is_safe "$val"; then
+                echo "config: invalid value characters" >&2
+                return 2
+            fi
+            if ! _cfg_assign "$key" "$val"; then
+                echo "config: could not set $key" >&2
+                return 2
+            fi
+            local set_mod
+            if set_mod=$(_cfg_module_name_from_var "$key"); then
+                _cfg_sync_module_order "$set_mod"
+            fi
+            if _cfg_write_conf "$path" 0 "$key"; then
                 echo "Set $key=$val → $path"
                 return 0
             fi
@@ -610,6 +776,7 @@ barista_config_main() {
                 if [ "$name" = "$toggle_name" ]; then
                     found=1
                     _cfg_toggle_module "$name"
+                    _cfg_sync_module_order "$name"
                     break
                 fi
             done
@@ -617,7 +784,7 @@ barista_config_main() {
                 echo "config: unknown module: $toggle_name" >&2
                 return 2
             fi
-            if _cfg_write_conf "$path"; then
+            if _cfg_write_conf "$path" 0; then
                 if _cfg_module_enabled "$toggle_name"; then
                     echo "Enabled $toggle_name → $path"
                 else

@@ -1767,6 +1767,29 @@ do_uninstall() {
     print_info "Restart Claude Code to apply changes"
 }
 
+# Copy runtime files (script, VERSION, modules, lib) into an install prefix.
+# Testable without writing settings.json. Fail if lib/config-tui.sh is absent.
+copy_runtime_files() {
+    local src="${1:-$SCRIPT_DIR}"
+    local dest="$2"
+
+    [ -n "$dest" ] || return 1
+    [ -f "$src/barista.sh" ] || return 1
+    [ -d "$src/modules" ] || return 1
+    [ -d "$src/lib" ] || return 1
+
+    mkdir -p "$dest/modules" "$dest/lib" || return 1
+    cp "$src/barista.sh" "$dest/" || return 1
+    chmod +x "$dest/barista.sh"
+    if [ -f "$src/VERSION" ]; then
+        cp "$src/VERSION" "$dest/" || return 1
+    fi
+    cp "$src/modules/"*.sh "$dest/modules/" || return 1
+    cp "$src/lib/"*.sh "$dest/lib/" || return 1
+    [ -f "$dest/lib/config-tui.sh" ] || return 1
+    return 0
+}
+
 # =============================================================================
 # MAIN INSTALLATION
 # =============================================================================
@@ -1933,22 +1956,10 @@ do_install() {
         exit 1
     }
 
-    cp "$SCRIPT_DIR/barista.sh" "$BARISTA_DIR/" || {
-        print_error "Could not copy barista.sh"
+    if ! copy_runtime_files "$SCRIPT_DIR" "$BARISTA_DIR"; then
+        print_error "Could not copy Barista runtime files (need barista.sh, modules/, lib/config-tui.sh)"
         exit 1
-    }
-    chmod +x "$BARISTA_DIR/barista.sh"
-
-    # Copy VERSION file for version/update modules
-    if [ -f "$SCRIPT_DIR/VERSION" ]; then
-        cp "$SCRIPT_DIR/VERSION" "$BARISTA_DIR/"
     fi
-
-    mkdir -p "$BARISTA_DIR/modules"
-    cp "$SCRIPT_DIR/modules/"*.sh "$BARISTA_DIR/modules/" || {
-        print_error "Could not copy modules"
-        exit 1
-    }
 
     # Validate module files
     local module_count=$(ls -1 "$BARISTA_DIR/modules/"*.sh 2>/dev/null | wc -l | tr -d ' ')

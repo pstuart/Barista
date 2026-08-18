@@ -653,6 +653,11 @@ barista_cli_dispatch() {
     case "${1:-}" in
         config|--config)
             shift
+            if [ ! -f "$SCRIPT_DIR/lib/config-tui.sh" ]; then
+                echo "barista: missing lib/config-tui.sh (incomplete install)." >&2
+                echo "Homebrew: brew reinstall barista. From source: re-run ./install.sh." >&2
+                exit 1
+            fi
             # shellcheck disable=SC1091
             . "$SCRIPT_DIR/lib/config-tui.sh"
             barista_config_main "$@"

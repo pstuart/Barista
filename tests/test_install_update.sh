@@ -3,7 +3,8 @@
 # ABOUTME: version_lt, and Homebrew-prefix refusal. Grep counts are not enough.
 # ABOUTME: Run with: bash tests/test_install_update.sh
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$REPO_ROOT"
 INSTALL="$SCRIPT_DIR/install.sh"
 PASS=0
 FAIL=0
@@ -76,7 +77,7 @@ assert_rc "do_update refuses Homebrew prefix" 1 do_update --update --no-emoji
 assert_eq "do_update brew path does not re-exec" "" "$REEXEC_LOG"
 
 # --- do_update git path forwards original argv through _reexec_installer ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$REPO_ROOT"
 FAKE_ROOT=$(mktemp -d)
 mkdir -p "$FAKE_ROOT/.git"
 SCRIPT_DIR="$FAKE_ROOT"
@@ -101,6 +102,27 @@ assert_eq "bare do_update re-exec has empty argv" "" "$REEXEC_ARGS"
 rm -f "$FAKE_ROOT/.git" 2>/dev/null
 rmdir "$FAKE_ROOT/.git" 2>/dev/null
 rmdir "$FAKE_ROOT" 2>/dev/null
+
+# --- copy_runtime_files ships lib/config-tui.sh (from-source install) ---
+# do_update cds into FAKE_ROOT; use the repo root captured at the top.
+COPY_DEST=$(mktemp -d)
+assert_rc "copy_runtime_files succeeds" 0 copy_runtime_files "$REPO_ROOT" "$COPY_DEST"
+if [ -f "$COPY_DEST/lib/config-tui.sh" ]; then
+    echo "  PASS: copy_runtime_files installs config-tui.sh"
+    PASS=$((PASS + 1))
+else
+    echo "  FAIL: copy_runtime_files missing lib/config-tui.sh"
+    FAIL=$((FAIL + 1))
+fi
+if [ -x "$COPY_DEST/barista.sh" ]; then
+    echo "  PASS: copy_runtime_files installs barista.sh"
+    PASS=$((PASS + 1))
+else
+    echo "  FAIL: copy_runtime_files missing barista.sh"
+    FAIL=$((FAIL + 1))
+fi
+rm -f "$COPY_DEST/barista.sh" "$COPY_DEST/VERSION" "$COPY_DEST/lib/"*.sh "$COPY_DEST/modules/"*.sh
+rmdir "$COPY_DEST/lib" "$COPY_DEST/modules" "$COPY_DEST" 2>/dev/null
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

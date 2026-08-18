@@ -14,6 +14,8 @@ Barista/
 ├── barista.conf        # Default configuration file
 ├── install.sh          # Interactive installer with arrow key navigation
 ├── VERSION             # Version tracking (semver)
+├── lib/
+│   └── config-tui.sh   # Runtime config TUI (`barista config`) — must ship with install
 ├── modules/
 │   ├── utils.sh        # Shared utility functions (MUST load first)
 │   ├── directory.sh    # Current directory module
@@ -50,7 +52,7 @@ Barista/
    - `$CLAUDE_CONFIG_DIR/barista.conf` (user overrides, defaults to `~/.claude/`)
    - `.barista.conf` in current project directory (per-project overrides)
 
-   Config files are sourced as bash, so Barista refuses to load any config that is group- or world-writable, and validates config-derived numerics before they reach `bc`/URL sinks.
+   Packaged `barista.conf` and the user override (`$CLAUDE_CONFIG_DIR/barista.conf`) are sourced as bash after a group/world-writable check. Per-directory `.barista.conf` is untrusted: `load_config_safe` (KEY=VALUE allowlist) never sources it. Config-derived numerics are validated before they reach `bc`/URL sinks. `barista config --project` uses the same safe parser.
 3. **Modules are loaded** from `modules/` directory (`utils.sh` first, then all others)
 4. **Modules are executed** in the order specified by `MODULE_ORDER` config
 5. **Output is concatenated** with the configured `SEPARATOR` and printed
@@ -180,9 +182,11 @@ Both respect `DISPLAY_MODE` for spacing and `STATUS_STYLE` for appearance (emoji
 
 Regression tests live in `tests/` (pure-bash assert harness, no framework). Each file runs standalone:
 ```bash
-bash tests/test_utils.sh        # utils.sh helpers
-bash tests/test_rate_limits.sh  # rate-limit parsers/backoff
-# also: test_cache, test_project, test_sandbox, test_update, test_uptime
+bash tests/test_utils.sh           # utils.sh helpers
+bash tests/test_rate_limits.sh     # rate-limit parsers/backoff
+bash tests/test_config_cli.sh      # barista config CLI (set/toggle/project)
+bash tests/test_install_update.sh  # installer update flags + runtime copy
+# also: test_cache, test_git_cache, test_project, test_sandbox, test_update, test_uptime
 ```
 
 Lint with `shellcheck` — `.shellcheckrc` disables SC2155 and SC2034 project-wide (see issue #21 for the policy).
@@ -238,3 +242,4 @@ The installer (`install.sh`) provides:
 - Multiple presets (minimal, developer, etc.)
 - Auto-update checking from GitHub
 - Backup/restore of previous statusline
+- Copies `barista.sh`, `VERSION`, `modules/`, and `lib/` (required for `barista config`)
