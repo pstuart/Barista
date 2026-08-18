@@ -178,6 +178,27 @@ else
     PASS=$((PASS + 1))
 fi
 
+# Same extras must not survive --project --toggle
+printf '%s\n' \
+    'PATH=/tmp/evil' \
+    'IFS=hack' \
+    'BASH_ENV=/tmp/evil.bashrc' \
+    'RATE_SHOW_PROGRESS_BAR="true"; echo PWNED_EXTRA' \
+    'MODULE_CPU="true"' \
+    > "$PROJ_PWN/.barista.conf"
+(
+  cd "$PROJ_PWN" || exit 1
+  "$BARISTA" config --project --toggle weather >/dev/null 2>&1
+)
+if grep -qE 'PATH=|IFS=|BASH_ENV=|PWNED_EXTRA' "$PROJ_PWN/.barista.conf"; then
+    echo "  FAIL: project --toggle copied unsafe extras"
+    FAIL=$((FAIL + 1))
+    cat "$PROJ_PWN/.barista.conf"
+else
+    echo "  PASS: project --toggle drops PATH/IFS/BASH_ENV/injection extras"
+    PASS=$((PASS + 1))
+fi
+
 # Documented default separator must be settable
 rc=0
 "$BARISTA" config --set 'SEPARATOR= | ' >/dev/null 2>&1 || rc=$?

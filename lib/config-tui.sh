@@ -287,8 +287,9 @@ _cfg_order_add() {
 }
 
 _cfg_order_remove() {
-    local name="$1" new="" m old_ifs
+    local name="$1" new="" m old_ifs had_noglob=""
     old_ifs="$IFS"
+    case "$-" in *f*) had_noglob=1 ;; esac
     set -f
     IFS=','
     for m in ${MODULE_ORDER:-}; do
@@ -303,7 +304,11 @@ _cfg_order_remove() {
         fi
     done
     IFS="$old_ifs"
-    set +f
+    if [ -n "$had_noglob" ]; then
+        set -f
+    else
+        set +f
+    fi
     MODULE_ORDER="$new"
 }
 
