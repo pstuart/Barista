@@ -144,6 +144,64 @@ fi
 # Safe parser should still honor KEY=VALUE
 show_proj=$(cd "$PROJ_PWN" && "$BARISTA" config --project --show 2>&1)
 assert_contains "project --show still works" "Modules:" "$show_proj"
+assert_contains "project --show honors MODULE_CPU" "[on ] cpu" "$show_proj"
+
+# --project --set must not copy extras that are not allowlisted / not safe
+printf '%s\n' \
+    'touch "$CLAUDE_CONFIG_DIR/pwned2"' \
+    'PATH=/tmp/evil' \
+    'IFS=hack' \
+    'BASH_ENV=/tmp/evil.bashrc' \
+    'RATE_SHOW_PROGRESS_BAR="true"; echo PWNED_EXTRA' \
+    'MODULE_CPU="true"' \
+    > "$PROJ_PWN/.barista.conf"
+chmod 644 "$PROJ_PWN/.barista.conf"
+(
+  cd "$PROJ_PWN" || exit 1
+  "$BARISTA" config --project --set COLOR_THEME=minimal >/dev/null 2>&1
+)
+if [ -e "$CLAUDE_CONFIG_DIR/pwned2" ]; then
+    echo "  FAIL: project --set sourced .barista.conf"
+    FAIL=$((FAIL + 1))
+else
+    echo "  PASS: project --set does not source .barista.conf"
+    PASS=$((PASS + 1))
+fi
+assert_file_contains "project --set writes theme" 'COLOR_THEME="minimal"' "$PROJ_PWN/.barista.conf"
+if grep -qE 'PATH=|IFS=|BASH_ENV=|PWNED_EXTRA|touch ' "$PROJ_PWN/.barista.conf"; then
+    echo "  FAIL: project --set copied unsafe extras"
+    FAIL=$((FAIL + 1))
+    echo "    file:"
+    cat "$PROJ_PWN/.barista.conf"
+else
+    echo "  PASS: project --set drops PATH/IFS/BASH_ENV/injection extras"
+    PASS=$((PASS + 1))
+fi
+
+# Documented default separator must be settable
+rc=0
+"$BARISTA" config --set 'SEPARATOR= | ' >/dev/null 2>&1 || rc=$?
+assert_eq "set allows pipe separator" "0" "$rc"
+assert_file_contains "set writes pipe separator" 'SEPARATOR=" | "' "$CLAUDE_CONFIG_DIR/barista.conf"
+
+# MODULE_ORDER=* must not expand cwd names
+rc=0
+"$BARISTA" config --set 'MODULE_ORDER=*' >/dev/null 2>&1 || rc=$?
+assert_eq "set rejects MODULE_ORDER glob" "2" "$rc"
+touch "$TMPHOME/STAR_GLOB_MARKER"
+printf '%s\n' 'MODULE_ORDER="*"' 'MODULE_GIT="true"' > "$CLAUDE_CONFIG_DIR/barista.conf"
+(
+  cd "$TMPHOME" || exit 1
+  "$BARISTA" config --toggle git >/dev/null 2>&1
+)
+if grep -q 'STAR_GLOB_MARKER' "$CLAUDE_CONFIG_DIR/barista.conf"; then
+    echo "  FAIL: toggle expanded MODULE_ORDER glob into filenames"
+    FAIL=$((FAIL + 1))
+    cat "$CLAUDE_CONFIG_DIR/barista.conf"
+else
+    echo "  PASS: toggle does not expand MODULE_ORDER globs"
+    PASS=$((PASS + 1))
+fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
