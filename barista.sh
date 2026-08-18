@@ -168,9 +168,10 @@ load_config_safe() {
                     \'*\') val="${val#\'}"; val="${val%\'}" ;;
                 esac
 
-                # Reject values containing shell metacharacters
+                # Reject shell metacharacters. Allow `|` so SEPARATOR=" | " loads.
+                # Reject `$` and glob chars so project files cannot park them.
                 case "$val" in
-                    *\`*|*\$\(*|*\;*|*\|*|*\&*|*\>*|*\<*) continue ;;
+                    *\`*|*\$*|*\;*|*\&*|*\>*|*\<*|*'*'*|*'?'*|*'['*) continue ;;
                 esac
 
                 # Safe to assign via printf into the variable
