@@ -163,7 +163,7 @@ prompt_update() {
     read -rp "Would you like to update now? [Y/n]: " update_choice
 
     if [ "$update_choice" != "n" ] && [ "$update_choice" != "N" ]; then
-        do_update
+        do_update "$@"
         return $?
     fi
 
@@ -207,7 +207,7 @@ interactive_update_check() {
         read -rp "Update now before installing? [Y/n]: " update_choice
 
         if [ "$update_choice" != "n" ] && [ "$update_choice" != "N" ]; then
-            do_update
+            do_update "$@"
             return $?
         fi
     else
@@ -2145,7 +2145,7 @@ main() {
         show_banner
         print_info "Checking for updates..."
         if check_for_updates; then
-            do_update
+            do_update "$@"
         else
             local ver=$(get_local_version)
             print_success "Already up to date ($ver)"
