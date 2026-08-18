@@ -2132,7 +2132,7 @@ main() {
         show_banner
         print_info "Checking for updates..."
         if check_for_updates; then
-            prompt_update
+            prompt_update "$@"
         else
             local ver=$(get_local_version)
             print_success "You have the latest version ($ver)"
@@ -2158,12 +2158,12 @@ main() {
         # In interactive mode, show banner first and ask user if they want to check
         if [ "$INSTALL_MODE" = "interactive" ]; then
             show_banner
-            interactive_update_check
+            interactive_update_check "$@"
         else
             # Non-interactive modes: silent check, only prompt if update available
             if check_for_updates; then
                 setup_colors  # Ensure colors are set before prompt
-                prompt_update
+                prompt_update "$@"
             fi
         fi
     fi
