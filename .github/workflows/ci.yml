@@ -36,6 +36,5 @@ jobs:
       - name: ShellCheck
         run: |
           # Policy: .shellcheckrc disables the reviewed leftover set
-          # (SC2155, SC2034 from #21; remaining SC2059, SC2001, SC2012,
-          # SC1090, SC2129, SC2086 tracked until a dedicated cleanup).
+          # (SC2155, SC2034 from #21; remaining codes in .shellcheckrc).
           shellcheck -x install.sh barista.sh modules/*.sh lib/*.sh
