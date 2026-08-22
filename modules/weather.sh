@@ -23,6 +23,10 @@ module_weather() {
     local show_cond="${WEATHER_SHOW_COND:-true}"
     local compact="${WEATHER_COMPACT:-false}"
     local cache_ttl="${WEATHER_CACHE_TTL:-1800}"
+    # Reject non-numeric TTL so an untrusted .barista.conf can't break arithmetic
+    case "$cache_ttl" in
+        ''|*[!0-9]*) cache_ttl=1800 ;;
+    esac
 
     local weather_data=""
 
