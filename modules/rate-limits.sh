@@ -255,6 +255,10 @@ module_rate_limits() {
 
     local cache_key="rate_limits_usage"
     local cache_ttl="${RATE_CACHE_TTL:-120}"
+    # Reject non-numeric TTL so an untrusted .barista.conf can't break cache_get
+    case "$cache_ttl" in
+        ''|*[!0-9]*) cache_ttl=120 ;;
+    esac
     local history_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.usage_history"
     local usage_data=""
     local fresh_fetch=false
@@ -262,7 +266,6 @@ module_rate_limits() {
     local backoff_remaining=0
 
     # Check if we're in API backoff (429 cooldown)
-    local backoff_remaining
     if backoff_remaining=$(_check_backoff); then
         in_backoff=true
     fi
