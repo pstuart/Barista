@@ -10,6 +10,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PASS=0
 FAIL=0
 
+TEST_BASE="$(mktemp -d "${TMPDIR:-/tmp}/barista-ttl-test.XXXXXX")"
+trap 'rm -rf "$TEST_BASE"' EXIT
+export CLAUDE_CONFIG_DIR="$TEST_BASE/claude"
+mkdir -p "$CLAUDE_CONFIG_DIR"
+
 assert_eq() {
     local desc="$1" expected="$2" actual="$3"
     if [ "$expected" = "$actual" ]; then
@@ -23,12 +28,12 @@ assert_eq() {
     fi
 }
 
-# Load utils (cache_get, _file_mtime, etc.)
+# Load utils only after establishing the isolated config root so its cache
+# location can never resolve to the user's real ~/.claude directory.
 . "$SCRIPT_DIR/modules/utils.sh"
 
 # Sandbox CACHE_DIR
-TEST_BASE="$(mktemp -d "${TMPDIR:-/tmp}/barista-ttl-test.XXXXXX")"
-CACHE_DIR="$TEST_BASE/cache"
+CACHE_DIR="$CLAUDE_CONFIG_DIR/barista-cache"
 mkdir -p "$CACHE_DIR"
 
 # -----------------------------------------------------------------------------
@@ -96,10 +101,6 @@ echo "=== rate-limits.sh RATE_CACHE_TTL validation ==="
 # (The real function would need an OAuth token; we don't test that here.)
 _get_claude_usage() { echo ""; }
 
-# Set CLAUDE_CONFIG_DIR to our sandbox so we don't touch real files
-export CLAUDE_CONFIG_DIR="$TEST_BASE/claude"
-mkdir -p "$CLAUDE_CONFIG_DIR"
-
 # Non-numeric RATE_CACHE_TTL: no stderr, no crash
 stderr=$(RATE_CACHE_TTL="not-a-number" module_rate_limits 2>&1 1>/dev/null)
 assert_eq "rate-limits with non-numeric TTL produces no stderr" "" "$stderr"
@@ -107,11 +108,6 @@ assert_eq "rate-limits with non-numeric TTL produces no stderr" "" "$stderr"
 # Negative RATE_CACHE_TTL: no stderr
 stderr=$(RATE_CACHE_TTL="-1" module_rate_limits 2>&1 1>/dev/null)
 assert_eq "rate-limits with negative TTL produces no stderr" "" "$stderr"
-
-# -----------------------------------------------------------------------------
-# Cleanup
-# -----------------------------------------------------------------------------
-rm -rf "$TEST_BASE"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
