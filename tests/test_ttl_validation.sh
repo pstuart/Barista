@@ -37,27 +37,34 @@ CACHE_DIR="$CLAUDE_CONFIG_DIR/barista-cache"
 mkdir -p "$CACHE_DIR"
 
 # -----------------------------------------------------------------------------
-# cache_get with a non-numeric max_age must not crash or print to stderr.
-# Before the module-side guards, cache_get would receive the raw config value.
-# The 2>/dev/null on the comparison means it silently treats cache as fresh;
-# this test documents that behaviour and ensures no stderr leaks.
+# cache_get with a non-numeric max_age must not crash, must not print to
+# stderr, and must treat the cache as a MISS: the age comparison would
+# otherwise silently fail and return a stale entry no matter how old it is.
 # -----------------------------------------------------------------------------
 echo "=== cache_get with non-numeric max_age ==="
 
 # Write a fresh cache entry
 echo "cached-value" > "$CACHE_DIR/test_ttl_key"
 
-# Non-numeric max_age: should not produce an error on stderr
+# Non-numeric max_age: no stderr, and a miss (exit 1, empty value)
 stderr=$(cache_get "test_ttl_key" "abc" 2>&1 1>/dev/null)
 assert_eq "cache_get non-numeric max_age produces no stderr" "" "$stderr"
-
-# The value is still returned (comparison silently fails -> treated as fresh)
 out=$(cache_get "test_ttl_key" "abc")
-assert_eq "cache_get non-numeric max_age still returns the value" "cached-value" "$out"
+assert_eq "cache_get non-numeric max_age treats cache as a miss" "" "$out"
 
 # Negative max_age: same treatment
 stderr=$(cache_get "test_ttl_key" "-5" 2>&1 1>/dev/null)
 assert_eq "cache_get negative max_age produces no stderr" "" "$stderr"
+
+# Numeric max_age still works: fresh entry returned within max_age
+out=$(cache_get "test_ttl_key" 60)
+assert_eq "cache_get numeric max_age still returns the value" "cached-value" "$out"
+
+# An old entry with a numeric max_age is a miss (backdate well past any TTL;
+# keep the portability fallback used in tests/test_cache.sh)
+touch -t 200001010000 "$CACHE_DIR/test_ttl_key" 2>/dev/null || touch -d "2000-01-01" "$CACHE_DIR/test_ttl_key"
+out=$(cache_get "test_ttl_key" 60)
+assert_eq "cache_get old entry with numeric max_age is a miss" "" "$out"
 
 # -----------------------------------------------------------------------------
 # weather.sh: WEATHER_CACHE_TTL is coerced to a safe default when non-numeric.
@@ -68,6 +75,7 @@ assert_eq "cache_get negative max_age produces no stderr" "" "$stderr"
 echo "=== weather.sh WEATHER_CACHE_TTL validation ==="
 
 # Load the weather module
+# shellcheck source=/dev/null
 . "$SCRIPT_DIR/modules/weather.sh"
 
 # Create a fake cache file so we exercise the mtime comparison path
@@ -95,6 +103,7 @@ assert_eq "weather module with valid TTL returns cached data" "☀️ 72°F" "$o
 # -----------------------------------------------------------------------------
 echo "=== rate-limits.sh RATE_CACHE_TTL validation ==="
 
+# shellcheck source=/dev/null
 . "$SCRIPT_DIR/modules/rate-limits.sh"
 
 # Stub: make _get_claude_usage a no-op so we isolate the TTL path
