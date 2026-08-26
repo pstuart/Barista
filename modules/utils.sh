@@ -87,6 +87,14 @@ cache_get() {
     current_time=$(date +%s)
     local age=$((current_time - file_time))
 
+    # A non-numeric max_age (from an untrusted .barista.conf setting
+    # CACHE_MAX_AGE, or a direct bad arg) would otherwise make the
+    # comparison below silently fail and treat any cache — no matter how
+    # old — as fresh. Treat a non-numeric max_age as a miss.
+    case "$max_age" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+
     if [ "$age" -gt "$max_age" ] 2>/dev/null; then
         # Cache expired
         return 1
