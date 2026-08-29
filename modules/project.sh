@@ -119,10 +119,10 @@ module_project() {
     fi
 
     # Check for dev server / build process.
-    # pgrep -f matches the full command line with BRE; `|` (unescaped) is the
-    # alternation meta-character. A backslash-pipe (`\|`) is treated as a
-    # literal backslash in BRE on modern macOS pgrep, so the alternation never
-    # fires and the indicator is silently invisible.
+    # pgrep -f matches the full command line with ERE (macOS pgrep(1): "extended
+    # regular expressions"). `|` is the alternation meta-character; a
+    # backslash-pipe (`\|`) is a literal `|`, so the old escaped pattern never
+    # matched and the indicator was silently invisible.
     if [ -n "$result" ]; then
         if [ "$show_dev" = "true" ] && pgrep -f "npm.*dev|yarn.*dev|pnpm.*dev|bun.*dev" >/dev/null 2>&1; then
             result="$result $dev_icon"

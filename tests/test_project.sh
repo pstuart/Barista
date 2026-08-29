@@ -54,9 +54,9 @@ assert_eq "USE_ICONS=false beats style=icon" "NAME" "$(USE_ICONS=false PROJECT_S
 assert_eq "USE_ICONS=false, default style"   "NAME" "$(USE_ICONS=false _format_project ICON NAME)"
 
 # --- dev-server pgrep pattern -------------------------------------------------
-# module_project uses pgrep -f with an unescaped-pipe BRE pattern to detect
+# module_project uses pgrep -f with an unescaped-pipe ERE pattern to detect
 # running dev servers (npm/yarn/pnpm/bun run dev).  The pre-fix version had
-# the pipes escaped (\|), which BRE pgrep treats as a literal backslash, so
+# the pipes escaped (\|), which ERE pgrep treats as a literal `|`, so
 # the alternation never matched and the 🚀 indicator was silently invisible
 # on macOS.  These tests verify the corrected pattern matches and the old
 # broken one does not.
