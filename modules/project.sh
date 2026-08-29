@@ -118,11 +118,15 @@ module_project() {
         result=$(_format_project "$(_get_project_icon bun "🍞")" "Bun")
     fi
 
-    # Check for dev server / build process
+    # Check for dev server / build process.
+    # pgrep -f matches the full command line with ERE (macOS pgrep(1): "extended
+    # regular expressions"). `|` is the alternation meta-character; a
+    # backslash-pipe (`\|`) is a literal `|`, so the old escaped pattern never
+    # matched and the indicator was silently invisible.
     if [ -n "$result" ]; then
-        if [ "$show_dev" = "true" ] && pgrep -f "npm.*dev\|yarn.*dev\|pnpm.*dev\|bun.*dev" >/dev/null 2>&1; then
+        if [ "$show_dev" = "true" ] && pgrep -f "npm.*dev|yarn.*dev|pnpm.*dev|bun.*dev" >/dev/null 2>&1; then
             result="$result $dev_icon"
-        elif [ "$show_build" = "true" ] && pgrep -f "npm.*build\|yarn.*build\|pnpm.*build" >/dev/null 2>&1; then
+        elif [ "$show_build" = "true" ] && pgrep -f "npm.*build|yarn.*build|pnpm.*build" >/dev/null 2>&1; then
             result="$result $build_icon"
         fi
     fi
