@@ -118,11 +118,15 @@ module_project() {
         result=$(_format_project "$(_get_project_icon bun "🍞")" "Bun")
     fi
 
-    # Check for dev server / build process
+    # Check for dev server / build process.
+    # pgrep -f matches the full command line with BRE; `|` (unescaped) is the
+    # alternation meta-character. A backslash-pipe (`\|`) is treated as a
+    # literal backslash in BRE on modern macOS pgrep, so the alternation never
+    # fires and the indicator is silently invisible.
     if [ -n "$result" ]; then
-        if [ "$show_dev" = "true" ] && pgrep -f "npm.*dev\|yarn.*dev\|pnpm.*dev\|bun.*dev" >/dev/null 2>&1; then
+        if [ "$show_dev" = "true" ] && pgrep -f "npm.*dev|yarn.*dev|pnpm.*dev|bun.*dev" >/dev/null 2>&1; then
             result="$result $dev_icon"
-        elif [ "$show_build" = "true" ] && pgrep -f "npm.*build\|yarn.*build\|pnpm.*build" >/dev/null 2>&1; then
+        elif [ "$show_build" = "true" ] && pgrep -f "npm.*build|yarn.*build|pnpm.*build" >/dev/null 2>&1; then
             result="$result $build_icon"
         fi
     fi
