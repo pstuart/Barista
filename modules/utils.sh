@@ -325,6 +325,52 @@ apply_theme() {
 # STATUS INDICATORS
 # =============================================================================
 
+# Resolve status-indicator glyphs according to STATUS_STYLE.
+# Usage: _status_style <levels> [variant]
+#   levels  3 or 4 (4 includes the orange band)
+#   variant 3-level → "[WARN]"; 4-level → "[MED]" for the yellow position
+_status_style() {
+    local levels="${1:-3}"
+    local variant="${2:-$1}"
+    local green="${STATUS_GREEN:-🟢}"
+    local yellow="${STATUS_YELLOW:-🟡}"
+    local orange="${STATUS_ORANGE:-🟠}"
+    local red="${STATUS_RED:-🔴}"
+
+    case "${STATUS_STYLE:-emoji}" in
+        ascii)
+            green="[OK]"
+            if [ "$variant" = "4" ]; then
+                yellow="[MED]"
+            else
+                yellow="[WARN]"
+            fi
+            orange="[HIGH]"
+            red="[CRIT]"
+            ;;
+        dots)
+            green="●"
+            yellow="●"
+            orange="●"
+            red="●"
+            ;;
+    esac
+
+    if [ "$levels" -ge 4 ] 2>/dev/null; then
+        printf '%s %s %s %s\n' "$green" "$yellow" "$orange" "$red"
+    else
+        printf '%s %s %s\n' "$green" "$yellow" "$red"
+    fi
+}
+
+# Echo the leading space placed before a status indicator outside compact mode,
+# shared by both status helpers so they stay consistent.
+_display_prefix() {
+    if [ "${DISPLAY_MODE:-normal}" != "compact" ]; then
+        echo " "
+    fi
+}
+
 # Get status indicator based on value and thresholds
 # Usage: get_status <value> <warning_threshold> <critical_threshold>
 get_status() {
@@ -337,28 +383,9 @@ get_status() {
         return
     fi
 
-    local green="${STATUS_GREEN:-🟢}"
-    local yellow="${STATUS_YELLOW:-🟡}"
-    local red="${STATUS_RED:-🔴}"
-
-    case "${STATUS_STYLE:-emoji}" in
-        ascii)
-            green="[OK]"
-            yellow="[WARN]"
-            red="[CRIT]"
-            ;;
-        dots)
-            green="●"
-            yellow="●"
-            red="●"
-            ;;
-    esac
-
-    # Add spacing before indicator in normal/verbose mode, none in compact
-    local prefix=""
-    if [ "${DISPLAY_MODE:-normal}" != "compact" ]; then
-        prefix=" "
-    fi
+    local green yellow red prefix
+    read -r green yellow red <<< "$(_status_style 3 3)"
+    prefix="$(_display_prefix)"
 
     if [ "$value" -ge "$critical" ] 2>/dev/null; then
         echo "${prefix}${red}"
@@ -383,31 +410,9 @@ get_status_4level() {
         return
     fi
 
-    local green="${STATUS_GREEN:-🟢}"
-    local yellow="${STATUS_YELLOW:-🟡}"
-    local orange="${STATUS_ORANGE:-🟠}"
-    local red="${STATUS_RED:-🔴}"
-
-    case "${STATUS_STYLE:-emoji}" in
-        ascii)
-            green="[OK]"
-            yellow="[MED]"
-            orange="[HIGH]"
-            red="[CRIT]"
-            ;;
-        dots)
-            green="●"
-            yellow="●"
-            orange="●"
-            red="●"
-            ;;
-    esac
-
-    # Add spacing before indicator in normal/verbose mode, none in compact
-    local prefix=""
-    if [ "${DISPLAY_MODE:-normal}" != "compact" ]; then
-        prefix=" "
-    fi
+    local green yellow orange red prefix
+    read -r green yellow orange red <<< "$(_status_style 4 4)"
+    prefix="$(_display_prefix)"
 
     if [ "$value" -ge "$high" ] 2>/dev/null; then
         echo "${prefix}${red}"
