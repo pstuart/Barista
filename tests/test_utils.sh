@@ -174,6 +174,20 @@ assert_eq "exactly one day shows 0h"  "1d 0h" "$(format_time_remaining 86400)"
 assert_eq "days and hours"            "1d 1h" "$(format_time_remaining 90061)"
 
 # -----------------------------------------------------------------------------
+# format_cooldown <seconds>
+# Compact cooldown/countdown tiers: >=3600 -> "Nh Mm"; >=60 -> "Nm"; else "Ns".
+# Sub-minute values keep the seconds tier (unlike format_time_remaining).
+# -----------------------------------------------------------------------------
+echo "=== format_cooldown Tests ==="
+assert_eq "sub-minute is seconds"         "30s"   "$(format_cooldown 30)"
+assert_eq "exactly one minute"            "1m"    "$(format_cooldown 60)"
+assert_eq "minutes only"                  "45m"   "$(format_cooldown 2700)"
+assert_eq "exactly one hour shows 0m"     "1h0m"  "$(format_cooldown 3600)"
+assert_eq "hours and minutes"             "1h5m"  "$(format_cooldown 3900)"
+assert_eq "days fold into hours tier"     "26h15m" "$(format_cooldown 94500)"
+assert_eq "zero is 0s"                    "0s"    "$(format_cooldown 0)"
+
+# -----------------------------------------------------------------------------
 # format_number <num>
 # >=1,000,000 -> "<n>M"; >=1,000 -> "<n>k"; else the number. Integer division
 # truncates (no rounding); the suffixes are lowercase k / uppercase M.

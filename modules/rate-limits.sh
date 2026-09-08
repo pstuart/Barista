@@ -288,16 +288,8 @@ module_rate_limits() {
     if [ -z "$usage_data" ]; then
         # No data at all - show backoff countdown if applicable
         if [ "$in_backoff" = "true" ]; then
-            local cooldown_display
-            if [ "$backoff_remaining" -ge 3600 ]; then
-                cooldown_display="$((backoff_remaining / 3600))h$((backoff_remaining % 3600 / 60))m"
-            elif [ "$backoff_remaining" -ge 60 ]; then
-                cooldown_display="$((backoff_remaining / 60))m"
-            else
-                cooldown_display="${backoff_remaining}s"
-            fi
             local pause_icon=$(get_icon "⏸" "WAIT:")
-            echo "${pause_icon} API cooldown ${cooldown_display}"
+            echo "${pause_icon} API cooldown $(format_cooldown "$backoff_remaining")"
         else
             local result=""
             [ "$show_5h" = "true" ] && result="${label_5h}:--"
@@ -443,15 +435,7 @@ module_rate_limits() {
     # Add stale/backoff indicator when showing cached data during API cooldown
     local stale_marker=""
     if [ "$in_backoff" = "true" ] && [ "$fresh_fetch" != "true" ]; then
-        local cooldown_display
-        if [ "$backoff_remaining" -ge 3600 ]; then
-            cooldown_display="$((backoff_remaining / 3600))h$((backoff_remaining % 3600 / 60))m"
-        elif [ "$backoff_remaining" -ge 60 ]; then
-            cooldown_display="$((backoff_remaining / 60))m"
-        else
-            cooldown_display="${backoff_remaining}s"
-        fi
-        stale_marker=" $(get_icon '⏸' 'WAIT')${cooldown_display}"
+        stale_marker=" $(get_icon '⏸' 'WAIT')$(format_cooldown "$backoff_remaining")"
     fi
 
     # Optional progress bars (rendered between label and percentage)
