@@ -524,6 +524,21 @@ progress_bar() {
 # TIME FORMATTING
 # =============================================================================
 
+# Format seconds into a compact cooldown/countdown string: "1h 5m", "45m", or
+# "30s" (sub-minute). Distinct from format_time_remaining, which reports
+# relative units ("1d 0h", "now") and omits the seconds tier.
+format_cooldown() {
+    local secs=$(safe_int "$1" 0)
+
+    if [ "$secs" -ge 3600 ]; then
+        echo "$((secs / 3600))h$((secs % 3600 / 60))m"
+    elif [ "$secs" -ge 60 ]; then
+        echo "$((secs / 60))m"
+    else
+        echo "${secs}s"
+    fi
+}
+
 # Format seconds into human-readable time (e.g., "2h 15m" or "3d 5h")
 format_time_remaining() {
     local seconds=$(safe_int "$1" 0)
