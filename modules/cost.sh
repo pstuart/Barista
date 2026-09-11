@@ -28,7 +28,9 @@ module_cost() {
 
     local result=""
 
-    # PERFORMANCE: Parse all needed values from JSON in one pass
+    # PERFORMANCE: parse all needed values from the JSON in one pass.
+    # session_cost stays a raw decimal string — it feeds printf/bc and the
+    # minimum-display gate, so it must not be truncated to an integer.
     local json_data
     json_data=$(echo "$input" | jq -r '{
         cost: (.cost.total_cost_usd // 0),
