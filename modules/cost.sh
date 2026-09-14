@@ -47,7 +47,10 @@ module_cost() {
 
     # Handle null/empty values
     [ -z "$session_cost" ] || [ "$session_cost" = "null" ] && session_cost="0"
-    [ -z "$session_duration_ms" ] || [ "$session_duration_ms" = "null" ] && session_duration_ms="0"
+    session_duration_ms=$(safe_int "$session_duration_ms" 0)
+    if [ "$session_duration_ms" -lt 0 ] 2>/dev/null; then
+        session_duration_ms="0"
+    fi
     total_input_tokens=$(safe_int "$total_input_tokens" 0)
     total_output_tokens=$(safe_int "$total_output_tokens" 0)
 
