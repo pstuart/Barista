@@ -92,6 +92,20 @@ assert_eq "decimal cost compared as decimal (0.5 passes 0.01 gate)" \
     "$(get_icon "💰" "COST:") \$0.50" \
     "$(run_cost '{"cost":{"total_cost_usd":0.5}}')"
 
+# --- Negative duration: no burn rate, no TPM ---------------------------------
+# A negative total_duration_ms is meaningless (elapsed time can't be negative);
+# it must not produce a negative burn rate ($/h) or negative TPM.
+
+assert_eq "negative duration suppresses burn rate and tpm" \
+    "$(get_icon "💰" "COST:") \$0.42" \
+    "$(run_cost '{"cost":{"total_cost_usd":0.42,"total_duration_ms":-500},"context_window":{"total_input_tokens":100,"total_output_tokens":50}}')"
+
+# --- Negative duration with no cost: empty result -----------------------------
+
+assert_eq "negative duration and zero cost yields empty result" \
+    "" \
+    "$(run_cost '{"cost":{"total_cost_usd":0,"total_duration_ms":-500},"context_window":{"total_input_tokens":100,"total_output_tokens":50}}')"
+
 echo
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
