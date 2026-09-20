@@ -55,8 +55,13 @@ assert_eq "cache_set rejects a traversal key"          "1"          "$?"
 assert_eq "cache_set writes no file outside the cache" "1"          "$([ ! -e "$CACHE_DIR/../escape" ] && echo 1 || echo 0)"
 cache_get "../escape" >/dev/null 2>&1
 assert_eq "cache_get rejects a '..' key"               "1"          "$?"
-cache_get "sub/key" >/dev/null 2>&1
-assert_eq "cache_get rejects a '/' key"                "1"          "$?"
+# A key containing a single "/" but no ".." is a legitimate flat-file name
+# inside CACHE_DIR; the guard must NOT reject it.  The call still returns
+# 1 because the sub-directory does not exist (file-not-found), but it is
+# not rejected by the path-traversal guard.
+cache_set "sub/key" "value"
+assert_eq "cache_set accepts a key with a slash"       "0"          "$?"
+assert_eq "cache_get returns the value for a slash key" "value"     "$(cache_get sub/key)"
 
 # cache_clear removes a single named key
 cache_set "update_check" "v1"

@@ -64,9 +64,11 @@ cache_get() {
     local key="$1"
     local max_age="${2:-${CACHE_MAX_AGE:-60}}"
 
-    # Reject keys with path traversal
+    # Reject keys that attempt path traversal (".."). Flat keys that happen
+    # to contain a single "/" (e.g. "rate_limits/1337") are legitimate file
+    # names inside the flat CACHE_DIR and are allowed.
     case "$key" in
-        *..* | */*) return 1 ;;
+        *..*) return 1 ;;
     esac
 
     local cache_file="$CACHE_DIR/${key}"
@@ -111,14 +113,19 @@ cache_set() {
     local key="$1"
     local value="$2"
 
-    # Reject keys with path traversal
+    # Reject keys that attempt path traversal (".."). Flat keys that happen
+    # to contain a single "/" (e.g. "rate_limits/1337") are legitimate file
+    # names inside the flat CACHE_DIR and are allowed.
     case "$key" in
-        *..* | */*) return 1 ;;
+        *..*) return 1 ;;
     esac
 
     init_cache
 
     local cache_file="$CACHE_DIR/${key}"
+    local cache_dirname
+    cache_dirname=$(dirname "$cache_file")
+    mkdir -p "$cache_dirname" 2>/dev/null
     echo "$value" > "$cache_file" 2>/dev/null
     # Defense-in-depth if dir 700 fails (odd FS/umask); matches wan_ip/token files.
     chmod 600 "$cache_file" 2>/dev/null
@@ -135,9 +142,9 @@ cache_clear() {
     fi
 
     if [ -n "$key" ]; then
-        # Reject key values with path traversal
+        # Reject keys that attempt path traversal ("..")
         case "$key" in
-            *..* | */*) return 1 ;;
+            *..*) return 1 ;;
         esac
         rm -f "$CACHE_DIR/${key}" 2>/dev/null
     else
