@@ -1479,8 +1479,12 @@ PROGRESS_BAR_WIDTH=8
 # Advanced Settings
 # =============================================================================
 
-# Cache duration for expensive operations (seconds)
+# Default cache TTL (seconds) when a module calls cache_get without its own TTL.
+# Git, rate limits, updates, and weather use their module-specific settings.
 CACHE_MAX_AGE=60
+
+# Cache files live under CLAUDE_CONFIG_DIR (default: ~/.claude/barista-cache).
+# Set CLAUDE_CONFIG_DIR before running Barista to move them.
 
 # Enable debug logging
 DEBUG_MODE="false"
