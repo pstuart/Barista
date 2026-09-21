@@ -129,6 +129,7 @@ cache_set() {
     echo "$value" > "$cache_file" 2>/dev/null
     # Defense-in-depth if dir 700 fails (odd FS/umask); matches wan_ip/token files.
     chmod 600 "$cache_file" 2>/dev/null
+    return 0
 }
 
 # Clear specific cache key or all cache
