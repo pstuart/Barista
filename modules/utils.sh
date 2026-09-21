@@ -126,10 +126,14 @@ cache_set() {
     local cache_dirname
     cache_dirname=$(dirname "$cache_file")
     mkdir -p "$cache_dirname" 2>/dev/null
-    echo "$value" > "$cache_file" 2>/dev/null
+    local status=1
+    if echo "$value" > "$cache_file" 2>/dev/null; then
+        status=0
+    fi
     # Defense-in-depth if dir 700 fails (odd FS/umask); matches wan_ip/token files.
+    # Best-effort: a chmod failure must not replace the write's status.
     chmod 600 "$cache_file" 2>/dev/null
-    return 0
+    return "$status"
 }
 
 # Clear specific cache key or all cache
