@@ -218,19 +218,15 @@ assert_eq "icons default on returns icon" "ICON" "$(get_icon ICON FB)"
 USE_ICONS="true"
 
 # -----------------------------------------------------------------------------
-# is_compact [module_flag] / is_verbose -- return-code helpers keyed on
-# DISPLAY_MODE. is_compact is additionally true when its module-flag arg == "true".
+# is_compact [module_flag] -- return-code helper keyed on DISPLAY_MODE.
+# is_compact is additionally true when its module-flag arg == "true".
 # -----------------------------------------------------------------------------
-echo "=== is_compact / is_verbose Tests ==="
+echo "=== is_compact Tests ==="
 DISPLAY_MODE="normal"
 assert_eq "normal mode is not compact" "no"  "$(is_compact && echo yes || echo no)"
 assert_eq "module flag forces compact" "yes" "$(is_compact true && echo yes || echo no)"
 DISPLAY_MODE="compact"
 assert_eq "compact mode is compact"    "yes" "$(is_compact && echo yes || echo no)"
-DISPLAY_MODE="verbose"
-assert_eq "verbose mode is verbose"    "yes" "$(is_verbose && echo yes || echo no)"
-DISPLAY_MODE="normal"
-assert_eq "normal mode is not verbose" "no"  "$(is_verbose && echo yes || echo no)"
 
 # -----------------------------------------------------------------------------
 # json_get <json> <path> [default] / json_get_int <json> <path> [default]

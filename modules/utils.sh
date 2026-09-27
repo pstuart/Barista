@@ -487,14 +487,6 @@ is_compact() {
     return 1  # false
 }
 
-# Check if in verbose mode
-is_verbose() {
-    if [ "${DISPLAY_MODE:-normal}" = "verbose" ]; then
-        return 0  # true
-    fi
-    return 1  # false
-}
-
 # =============================================================================
 # PROGRESS BAR
 # =============================================================================
