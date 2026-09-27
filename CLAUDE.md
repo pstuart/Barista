@@ -76,7 +76,7 @@ Barista/
 - **Icon handling**: `get_icon()` respects `USE_ICONS` setting
 - **Progress bar**: `progress_bar()` generates visual bars
 - **JSON helpers**: `json_get()`, `json_get_int()` for safe extraction
-- **Display mode checks**: `is_compact()`, `is_verbose()`
+- **Display mode checks**: `is_compact()`
 - **Logging**: `log_debug()` for debug mode
 
 ### `barista.conf` (Configuration)
