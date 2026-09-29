@@ -285,7 +285,7 @@ The installer lets you customize:
 | **Status Indicators** | 🟢🟡🔴 Emoji, ●●● Dots, or [OK][WARN] ASCII |
 | **Progress Bars** | ████░░ Blocks, ▓▓▓░░ Shaded, ●●●○○ Circles, #### Hash |
 | **Separators** | \| Pipe, ║ Double, › Arrow, • Bullet, : Colon |
-| **Color Themes** | Default, Minimal, Vibrant, Monochrome |
+| **Color Themes** | Default, Minimal, Vibrant, Monochrome, Nerd Font |
 | **Display Mode** | Normal, Compact, Verbose |
 
 ### Runtime config (`barista config`)
@@ -357,9 +357,15 @@ Configuration is loaded in order of precedence:
 
 SEPARATOR=" | "           # Section separator (or " › ", " • ", etc.)
 DISPLAY_MODE="normal"     # "normal", "compact", "verbose"
-COLOR_THEME="default"     # "default", "minimal", "vibrant", "monochrome"
+COLOR_THEME="default"     # "default", "minimal", "vibrant", "monochrome", "nerd"
 USE_ICONS="true"          # Enable emoji icons
 STATUS_STYLE="emoji"      # "emoji", "ascii", "dots"
+
+# Custom status indicators (STATUS_STYLE="emoji"; themes override the defaults)
+STATUS_GREEN="🟢"
+STATUS_YELLOW="🟡"
+STATUS_ORANGE="🟠"        # 4-level indicators (rate limits) use the orange band
+STATUS_RED="🔴"
 
 # Progress bar customization
 PROGRESS_BAR_WIDTH=8
