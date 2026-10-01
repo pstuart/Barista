@@ -15,24 +15,24 @@
 # rate-limit backoff / history-size math.
 # Fall back to GNU `stat -c` on Linux and to `0` on any failure.
 
-_file_mtime() {
-    local f="$1"
+# _file_stat <bsd_fmt> <gnu_fmt> <file> — shared portable-stat core:
+# existence check, Darwin/Linux branch, and `0` fallback on any failure.
+_file_stat() {
+    local fmt_bsd="$1" fmt_gnu="$2" f="$3"
     [ -e "$f" ] || { echo 0; return; }
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        /usr/bin/stat -f %m "$f" 2>/dev/null || echo 0
+        /usr/bin/stat -f "$fmt_bsd" "$f" 2>/dev/null || echo 0
     else
-        stat -c %Y "$f" 2>/dev/null || echo 0
+        stat -c "$fmt_gnu" "$f" 2>/dev/null || echo 0
     fi
 }
 
+_file_mtime() {
+    _file_stat %m %Y "$1"
+}
+
 _file_size() {
-    local f="$1"
-    [ -e "$f" ] || { echo 0; return; }
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        /usr/bin/stat -f %z "$f" 2>/dev/null || echo 0
-    else
-        stat -c %s "$f" 2>/dev/null || echo 0
-    fi
+    _file_stat %z %s "$1"
 }
 
 # =============================================================================
