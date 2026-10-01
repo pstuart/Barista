@@ -361,7 +361,7 @@ COLOR_THEME="default"     # "default", "minimal", "vibrant", "monochrome", "nerd
 USE_ICONS="true"          # Enable emoji icons
 STATUS_STYLE="emoji"      # "emoji", "ascii", "dots"
 
-# Custom status indicators (STATUS_STYLE="emoji"; themes override the defaults)
+# Custom status indicators (STATUS_STYLE="emoji"; COLOR_THEME fills indicator and icon variables only when they are still unset, and shipped barista.conf already sets the default emoji, so minimal, vibrant, and nerd do not replace them. monochrome still forces STATUS_STYLE=ascii and USE_ICONS=false).
 STATUS_GREEN="🟢"
 STATUS_YELLOW="🟡"
 STATUS_ORANGE="🟠"        # 4-level indicators (rate limits) use the orange band
