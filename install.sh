@@ -1315,68 +1315,39 @@ interactive_display_preferences() {
 show_statusline_preview() {
     local sep="$SEPARATOR_CHAR"
     local preview=""
+    if ! type theme_default_icon >/dev/null 2>&1; then
+        if [ -f "$SCRIPT_DIR/modules/utils.sh" ]; then
+            # shellcheck source=modules/utils.sh
+            . "$SCRIPT_DIR/modules/utils.sh"
+        fi
+    fi
 
-    # Build preview based on selected modules
+    local module part icon label bar status
     for module in "${SELECTED_MODULES[@]}"; do
-        local part=""
+        part=""
+        icon=""
+        label=""
+        icon=$(theme_default_icon "$module")
         case "$module" in
-            directory)
-                if [ "$USE_EMOJI" = "true" ]; then
-                    part="📁 myproject"
-                else
-                    part="DIR: myproject"
-                fi
-                ;;
+            directory) label="myproject" ;;
             context)
-                local bar="${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}"
-                local status=""
-                case "$STATUS_STYLE" in
-                    emoji) status="🟢" ;;
-                    dots) status="●" ;;
-                    ascii) status="[OK]" ;;
-                esac
-                if [ "$USE_EMOJI" = "true" ]; then
-                    part="📊 $bar 50%$status"
-                else
-                    part="CTX: $bar 50%$status"
-                fi
+                bar="${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_FILLED}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}${PROGRESS_EMPTY}"
+                status=$(theme_status_glyph)
+                label="$bar 50%$status"
                 ;;
-            git)
-                if [ "$USE_EMOJI" = "true" ]; then
-                    part="🌿 main"
-                else
-                    part="GIT: main"
-                fi
-                ;;
-            model)
-                if [ "$USE_EMOJI" = "true" ]; then
-                    part="🤖 Opus"
-                else
-                    part="MODEL: Opus"
-                fi
-                ;;
-            cost)
-                if [ "$USE_EMOJI" = "true" ]; then
-                    part="💰 \$1.25"
-                else
-                    part="COST: \$1.25"
-                fi
-                ;;
-            time)
-                if [ "$USE_EMOJI" = "true" ]; then
-                    part="🕐 12:30"
-                else
-                    part="TIME: 12:30"
-                fi
-                ;;
-            battery)
-                if [ "$USE_EMOJI" = "true" ]; then
-                    part="🔋 85%"
-                else
-                    part="BAT: 85%"
-                fi
-                ;;
+            git) label="main" ;;
+            model) label="Opus" ;;
+            cost) label="\$1.25" ;;
+            time) label="12:30" ;;
+            battery) label="85%" ;;
         esac
+        if [ -n "$label" ] || [ -n "$icon" ]; then
+            if [ -n "$icon" ]; then
+                part="$icon $label"
+            else
+                part="$label"
+            fi
+        fi
 
         if [ -n "$part" ]; then
             if [ -n "$preview" ]; then
@@ -1387,7 +1358,6 @@ show_statusline_preview() {
         fi
     done
 
-    # Limit preview length
     if [ ${#preview} -gt 100 ]; then
         preview="${preview:0:97}..."
     fi
@@ -1396,6 +1366,7 @@ show_statusline_preview() {
     echo -e "  ${DIM}$preview${NC}"
     echo ""
 }
+
 
 # =============================================================================
 # CONFIGURATION GENERATION

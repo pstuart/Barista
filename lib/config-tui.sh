@@ -436,33 +436,55 @@ _cfg_show() {
 }
 
 _cfg_preview_line() {
-    # Static sample preview (no network / git) so TUI stays snappy
-    local parts="" mod_def name sample
+    # Static sample preview (no network / git) so TUI stays snappy.
+    # Icons follow COLOR_THEME the way apply_theme fills unset icon variables.
+    local parts="" mod_def name sample label emoji icon theme icons
+    theme="${COLOR_THEME:-default}"
+    icons="${USE_ICONS:-true}"
+    if [ "${USE_EMOJI:-true}" = "false" ]; then
+        icons="false"
+    fi
     for mod_def in "${_CFG_ALL_MODULES[@]}"; do
         name=$(_cfg_mod_name "$mod_def")
         _cfg_module_enabled "$name" || continue
+        label=""
+        emoji=""
         case "$name" in
-            directory) sample="📁 project" ;;
-            context) sample="📊 ███░░ 42%" ;;
-            git) sample="🌿 main" ;;
-            project) sample="⚡ bash" ;;
-            model) sample="🤖 Claude" ;;
-            cost) sample="💰 \$0.12" ;;
-            rate-limits) sample="5h:20%" ;;
-            time) sample="🕐 12:00" ;;
-            battery) sample="🔋 90%" ;;
-            cpu) sample="CPU 12%" ;;
-            memory) sample="RAM 40%" ;;
-            disk) sample="Disk 55%" ;;
-            network) sample="🌐 lan" ;;
-            docker) sample="🐳 0" ;;
-            node) sample="Node 22" ;;
-            weather) sample="☀️ 72°" ;;
-            sandbox) sample="🔒" ;;
-            version) sample="v${BARISTA_VERSION:-?}" ;;
-            update) sample="" ;;
-            *) sample="$name" ;;
+            directory) label="project"; emoji="📁" ;;
+            context) label="███░░ 42%"; emoji="📊" ;;
+            git) label="main"; emoji="🌿" ;;
+            project) label="bash"; emoji="⚡" ;;
+            model) label="Claude"; emoji="🤖" ;;
+            cost) label="\$0.12"; emoji="💰" ;;
+            rate-limits) label="5h:20%" ;;
+            time) label="12:00"; emoji="🕐" ;;
+            battery) label="90%"; emoji="🔋" ;;
+            cpu) label="12%"; emoji="CPU" ;;
+            memory) label="40%"; emoji="RAM" ;;
+            disk) label="55%"; emoji="Disk" ;;
+            network) label="lan"; emoji="🌐" ;;
+            docker) label="0"; emoji="🐳" ;;
+            node) label="22"; emoji="Node" ;;
+            weather) label="72°"; emoji="☀️" ;;
+            sandbox) label=""; emoji="🔒" ;;
+            version) label="v${BARISTA_VERSION:-?}" ;;
+            update) label="" ;;
+            *) label="$name" ;;
         esac
+        icon=""
+        if type theme_default_icon >/dev/null 2>&1; then
+            icon=$(theme_default_icon "$name")
+        fi
+        if [ -z "$icon" ] && [ "$theme" = "default" ] && [ "$icons" != "false" ]; then
+            icon="$emoji"
+        fi
+        if [ -n "$icon" ] && [ -n "$label" ]; then
+            sample="$icon $label"
+        elif [ -n "$icon" ]; then
+            sample="$icon"
+        else
+            sample="$label"
+        fi
         [ -z "$sample" ] && continue
         if [ -n "$parts" ]; then
             parts="${parts}${SEPARATOR}${sample}"
@@ -472,6 +494,7 @@ _cfg_preview_line() {
     done
     echo "${parts:-(no modules enabled)}"
 }
+
 
 # ---- Interactive menus -------------------------------------------------------
 
