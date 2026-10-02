@@ -91,7 +91,7 @@ All settings are documented with comments. Key settings:
 
 ## Color Themes
 
-The `COLOR_THEME` setting changes status indicators and icons globally:
+COLOR_THEME fills status indicators and icons only when those variables are still unset; shipped barista.conf assigns the default emoji first, so minimal, vibrant, and nerd do not restyle them, while monochrome still forces STATUS_STYLE=ascii and USE_ICONS=false.
 
 | Theme | Status Indicators | Icon Style | Use Case |
 |-------|-------------------|------------|----------|
