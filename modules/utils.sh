@@ -333,6 +333,108 @@ apply_theme() {
     esac
 }
 
+
+# Glyph apply_theme would assign for one module when that icon variable is still unset.
+# The nerd theme's defaults are empty, so this prints nothing for it.
+# Usage: theme_default_icon <module> [theme]
+theme_default_icon() {
+    local module="$1"
+    local theme="${2:-${COLOR_THEME:-default}}"
+    case "$theme" in
+        minimal)
+            case "$module" in
+                directory) printf '%s\n' "→" ;;
+                context) printf '%s\n' "◐" ;;
+                git) printf '%s\n' "⎇" ;;
+                model) printf '%s\n' "◈" ;;
+                cost) printf '%s\n' '$' ;;
+                battery) printf '%s\n' "⚡" ;;
+                cpu) printf '%s\n' "▪" ;;
+                memory) printf '%s\n' "▫" ;;
+                node) printf '%s\n' "⬡" ;;
+            esac
+            ;;
+        vibrant)
+            case "$module" in
+                directory) printf '%s\n' "📂" ;;
+                context) printf '%s\n' "🎯" ;;
+                git) printf '%s\n' "🔀" ;;
+                model) printf '%s\n' "🧠" ;;
+                cost) printf '%s\n' "💸" ;;
+                time) printf '%s\n' "⏰" ;;
+                battery) printf '%s\n' "🔌" ;;
+                cpu) printf '%s\n' "⚙️" ;;
+                memory) printf '%s\n' "💾" ;;
+                node) printf '%s\n' "💎" ;;
+            esac
+            ;;
+        monochrome)
+            case "$module" in
+                directory) printf '%s\n' "DIR:" ;;
+                context) printf '%s\n' "CTX:" ;;
+                git) printf '%s\n' "GIT:" ;;
+                model) printf '%s\n' "AI:" ;;
+                cost) printf '%s\n' '$:' ;;
+                time) printf '%s\n' "TIME:" ;;
+                battery) printf '%s\n' "BAT:" ;;
+                cpu) printf '%s\n' "CPU:" ;;
+                memory) printf '%s\n' "MEM:" ;;
+                node) printf '%s\n' "NODE:" ;;
+            esac
+            ;;
+        nerd)
+            ;;
+        *)
+            local icons="${USE_ICONS:-true}"
+            if [ "${USE_EMOJI:-true}" = "false" ]; then
+                icons="false"
+            fi
+            if [ "$icons" = "false" ]; then
+                case "$module" in
+                    directory) printf '%s\n' "DIR:" ;;
+                    context) printf '%s\n' "CTX:" ;;
+                    git) printf '%s\n' "GIT:" ;;
+                    model) printf '%s\n' "MODEL:" ;;
+                    cost) printf '%s\n' "COST:" ;;
+                    time) printf '%s\n' "TIME:" ;;
+                    battery) printf '%s\n' "BAT:" ;;
+                esac
+            else
+                case "$module" in
+                    directory) printf '%s\n' "📁" ;;
+                    context) printf '%s\n' "📊" ;;
+                    git) printf '%s\n' "🌿" ;;
+                    model) printf '%s\n' "🤖" ;;
+                    cost) printf '%s\n' "💰" ;;
+                    time) printf '%s\n' "🕐" ;;
+                    battery) printf '%s\n' "🔋" ;;
+                esac
+            fi
+            ;;
+    esac
+}
+
+# Status glyph the preview should show for the active theme and STATUS_STYLE.
+# Monochrome forces the ASCII mark even when STATUS_STYLE is still emoji.
+theme_status_glyph() {
+    local theme="${1:-${COLOR_THEME:-default}}"
+    local style="${STATUS_STYLE:-emoji}"
+    if [ "$theme" = "monochrome" ]; then
+        style="ascii"
+    fi
+    case "$style" in
+        ascii) printf '%s\n' "[OK]" ;;
+        dots) printf '%s\n' "●" ;;
+        *)
+            case "$theme" in
+                minimal) printf '%s\n' "◦" ;;
+                vibrant) printf '%s\n' "💚" ;;
+                *) printf '%s\n' "🟢" ;;
+            esac
+            ;;
+    esac
+}
+
 # =============================================================================
 # STATUS INDICATORS
 # =============================================================================
