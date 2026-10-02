@@ -177,8 +177,8 @@ safe_int() {
     # Remove any decimal portion
     val="${val%%.*}"
 
-    # Check if it's a valid integer (equivalent to grep -E '^-?[0-9]+$';
-    # pure Bash avoids forking grep on this hot path)
+    # Require digits across the whole value after an optional leading minus.
+    # Pure Bash avoids grep on this hot path and also rejects embedded newlines.
     local digits="${val#-}"
     case "$digits" in
         '' | *[!0-9]*) echo "$default" ;;
