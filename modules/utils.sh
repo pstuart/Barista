@@ -177,12 +177,13 @@ safe_int() {
     # Remove any decimal portion
     val="${val%%.*}"
 
-    # Check if it's a valid integer
-    if echo "$val" | grep -qE '^-?[0-9]+$'; then
-        echo "$val"
-    else
-        echo "$default"
-    fi
+    # Require digits across the whole value after an optional leading minus.
+    # Pure Bash avoids grep on this hot path and also rejects embedded newlines.
+    local digits="${val#-}"
+    case "$digits" in
+        '' | *[!0-9]*) echo "$default" ;;
+        *) echo "$val" ;;
+    esac
 }
 
 # Safe division that avoids divide by zero
