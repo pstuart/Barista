@@ -218,19 +218,15 @@ assert_eq "icons default on returns icon" "ICON" "$(get_icon ICON FB)"
 USE_ICONS="true"
 
 # -----------------------------------------------------------------------------
-# is_compact [module_flag] / is_verbose -- return-code helpers keyed on
-# DISPLAY_MODE. is_compact is additionally true when its module-flag arg == "true".
+# is_compact [module_flag] -- return-code helper keyed on DISPLAY_MODE.
+# is_compact is additionally true when its module-flag arg == "true".
 # -----------------------------------------------------------------------------
-echo "=== is_compact / is_verbose Tests ==="
+echo "=== is_compact Tests ==="
 DISPLAY_MODE="normal"
 assert_eq "normal mode is not compact" "no"  "$(is_compact && echo yes || echo no)"
 assert_eq "module flag forces compact" "yes" "$(is_compact true && echo yes || echo no)"
 DISPLAY_MODE="compact"
 assert_eq "compact mode is compact"    "yes" "$(is_compact && echo yes || echo no)"
-DISPLAY_MODE="verbose"
-assert_eq "verbose mode is verbose"    "yes" "$(is_verbose && echo yes || echo no)"
-DISPLAY_MODE="normal"
-assert_eq "normal mode is not verbose" "no"  "$(is_verbose && echo yes || echo no)"
 
 # -----------------------------------------------------------------------------
 # json_get <json> <path> [default] / json_get_int <json> <path> [default]
@@ -253,6 +249,51 @@ assert_eq "json_get_int extracts an integer"           "42"  "$(json_get_int '{"
 assert_eq "json_get_int non-numeric -> default 0"      "0"   "$(json_get_int '{"n":"x"}' '.n')"
 assert_eq "json_get_int missing -> explicit default"   "5"   "$(json_get_int '{}' '.n' '5')"
 assert_eq "json_get_int omitted default is 0"          "0"   "$(json_get_int '{}' '.n')"
+
+# -----------------------------------------------------------------------------
+# module_memory (modules/memory.sh) -- divide-by-zero guard.
+# The module computes mem_pct from a system-reported total; if that total is
+# empty or 0 (sysctl hw.memsize / MemTotal failure) it must return quietly:
+# no 'division by zero' on stderr, no output. Mock uname + grep on PATH (the
+# grep mock passes non-meminfo calls through to the real grep) and run the
+# module in a fresh bash so the test shell's command hash can't shadow mocks.
+# -----------------------------------------------------------------------------
+echo "=== module_memory divide-by-zero Tests ==="
+MOCK_DIR="$SCRIPT_DIR/.test-mem-mock.$$"
+mkdir -p "$MOCK_DIR"
+printf '#!/bin/sh\necho Linux\n' > "$MOCK_DIR/uname"
+cat > "$MOCK_DIR/grep" <<'MOCK'
+#!/bin/sh
+case "$*" in
+    *MemTotal*)     echo "MemTotal: ${MOCK_MEM_TOTAL-}"; exit 0 ;;
+    *MemAvailable*) echo "MemAvailable: ${MOCK_MEM_AVAIL-}"; exit 0 ;;
+esac
+if [ "${MOCK_GREP_REAL:-}" = "1" ]; then exit 0; fi
+MOCK_GREP_REAL=1 exec grep "$@"
+MOCK
+cat > "$MOCK_DIR/run.sh" <<MOCK
+. "$SCRIPT_DIR/modules/utils.sh"
+. "$SCRIPT_DIR/modules/memory.sh"
+USE_ICONS="false" MEMORY_SHOW_USED="false" MEMORY_SHOW_PERCENTAGE="true"
+MEMORY_SHOW_STATUS="true" STATUS_STYLE="ascii" DISPLAY_MODE="normal"
+module_memory
+MOCK
+chmod +x "$MOCK_DIR/uname" "$MOCK_DIR/grep"
+
+mem_probe() {
+    # $1 = MemTotal field, $2 = MemAvailable field. Prints rc|stdout|stderr.
+    local out err rc
+    out=$(MOCK_MEM_TOTAL="$1" MOCK_MEM_AVAIL="$2" PATH="$MOCK_DIR:$PATH" \
+          bash "$MOCK_DIR/run.sh" 2>"$MOCK_DIR/err"); rc=$?
+    err=$(cat "$MOCK_DIR/err")
+    printf '%s|%s|%s' "$rc" "$out" "$err"
+}
+
+assert_eq "MemTotal 0: exit 0, no output, no stderr"       "0||"                "$(mem_probe 0 0)"
+assert_eq "MemTotal empty: exit 0, no output, no stderr"   "0||"                "$(mem_probe '' 0)"
+assert_eq "MemTotal 16 GB used 4 GB: clean percent output" "0|MEM: 25% [OK]|"   "$(mem_probe 16777216 12582912)"
+
+rm -rf "$MOCK_DIR"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

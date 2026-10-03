@@ -76,7 +76,7 @@ Barista/
 - **Icon handling**: `get_icon()` respects `USE_ICONS` setting
 - **Progress bar**: `progress_bar()` generates visual bars
 - **JSON helpers**: `json_get()`, `json_get_int()` for safe extraction
-- **Display mode checks**: `is_compact()`, `is_verbose()`
+- **Display mode checks**: `is_compact()`
 - **Logging**: `log_debug()` for debug mode
 
 ### `barista.conf` (Configuration)
@@ -91,7 +91,7 @@ All settings are documented with comments. Key settings:
 
 ## Color Themes
 
-The `COLOR_THEME` setting changes status indicators and icons globally:
+COLOR_THEME fills status indicators and icons only when those variables are still unset; shipped barista.conf assigns the default emoji first, so minimal, vibrant, and nerd do not restyle them, while monochrome still forces STATUS_STYLE=ascii and USE_ICONS=false.
 
 | Theme | Status Indicators | Icon Style | Use Case |
 |-------|-------------------|------------|----------|

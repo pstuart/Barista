@@ -15,24 +15,24 @@
 # rate-limit backoff / history-size math.
 # Fall back to GNU `stat -c` on Linux and to `0` on any failure.
 
-_file_mtime() {
-    local f="$1"
+# _file_stat <bsd_fmt> <gnu_fmt> <file> — shared portable-stat core:
+# existence check, Darwin/Linux branch, and `0` fallback on any failure.
+_file_stat() {
+    local fmt_bsd="$1" fmt_gnu="$2" f="$3"
     [ -e "$f" ] || { echo 0; return; }
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        /usr/bin/stat -f %m "$f" 2>/dev/null || echo 0
+        /usr/bin/stat -f "$fmt_bsd" "$f" 2>/dev/null || echo 0
     else
-        stat -c %Y "$f" 2>/dev/null || echo 0
+        stat -c "$fmt_gnu" "$f" 2>/dev/null || echo 0
     fi
 }
 
+_file_mtime() {
+    _file_stat %m %Y "$1"
+}
+
 _file_size() {
-    local f="$1"
-    [ -e "$f" ] || { echo 0; return; }
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        /usr/bin/stat -f %z "$f" 2>/dev/null || echo 0
-    else
-        stat -c %s "$f" 2>/dev/null || echo 0
-    fi
+    _file_stat %z %s "$1"
 }
 
 # =============================================================================
@@ -177,12 +177,13 @@ safe_int() {
     # Remove any decimal portion
     val="${val%%.*}"
 
-    # Check if it's a valid integer
-    if echo "$val" | grep -qE '^-?[0-9]+$'; then
-        echo "$val"
-    else
-        echo "$default"
-    fi
+    # Require digits across the whole value after an optional leading minus.
+    # Pure Bash avoids grep on this hot path and also rejects embedded newlines.
+    local digits="${val#-}"
+    case "$digits" in
+        '' | *[!0-9]*) echo "$default" ;;
+        *) echo "$val" ;;
+    esac
 }
 
 # Safe division that avoids divide by zero
@@ -329,6 +330,108 @@ apply_theme() {
             STATUS_YELLOW="${STATUS_YELLOW:-🟡}"
             STATUS_ORANGE="${STATUS_ORANGE:-🟠}"
             STATUS_RED="${STATUS_RED:-🔴}"
+            ;;
+    esac
+}
+
+
+# Glyph apply_theme would assign for one module when that icon variable is still unset.
+# The nerd theme's defaults are empty, so this prints nothing for it.
+# Usage: theme_default_icon <module> [theme]
+theme_default_icon() {
+    local module="$1"
+    local theme="${2:-${COLOR_THEME:-default}}"
+    case "$theme" in
+        minimal)
+            case "$module" in
+                directory) printf '%s\n' "→" ;;
+                context) printf '%s\n' "◐" ;;
+                git) printf '%s\n' "⎇" ;;
+                model) printf '%s\n' "◈" ;;
+                cost) printf '%s\n' '$' ;;
+                battery) printf '%s\n' "⚡" ;;
+                cpu) printf '%s\n' "▪" ;;
+                memory) printf '%s\n' "▫" ;;
+                node) printf '%s\n' "⬡" ;;
+            esac
+            ;;
+        vibrant)
+            case "$module" in
+                directory) printf '%s\n' "📂" ;;
+                context) printf '%s\n' "🎯" ;;
+                git) printf '%s\n' "🔀" ;;
+                model) printf '%s\n' "🧠" ;;
+                cost) printf '%s\n' "💸" ;;
+                time) printf '%s\n' "⏰" ;;
+                battery) printf '%s\n' "🔌" ;;
+                cpu) printf '%s\n' "⚙️" ;;
+                memory) printf '%s\n' "💾" ;;
+                node) printf '%s\n' "💎" ;;
+            esac
+            ;;
+        monochrome)
+            case "$module" in
+                directory) printf '%s\n' "DIR:" ;;
+                context) printf '%s\n' "CTX:" ;;
+                git) printf '%s\n' "GIT:" ;;
+                model) printf '%s\n' "AI:" ;;
+                cost) printf '%s\n' '$:' ;;
+                time) printf '%s\n' "TIME:" ;;
+                battery) printf '%s\n' "BAT:" ;;
+                cpu) printf '%s\n' "CPU:" ;;
+                memory) printf '%s\n' "MEM:" ;;
+                node) printf '%s\n' "NODE:" ;;
+            esac
+            ;;
+        nerd)
+            ;;
+        *)
+            local icons="${USE_ICONS:-true}"
+            if [ "${USE_EMOJI:-true}" = "false" ]; then
+                icons="false"
+            fi
+            if [ "$icons" = "false" ]; then
+                case "$module" in
+                    directory) printf '%s\n' "DIR:" ;;
+                    context) printf '%s\n' "CTX:" ;;
+                    git) printf '%s\n' "GIT:" ;;
+                    model) printf '%s\n' "MODEL:" ;;
+                    cost) printf '%s\n' "COST:" ;;
+                    time) printf '%s\n' "TIME:" ;;
+                    battery) printf '%s\n' "BAT:" ;;
+                esac
+            else
+                case "$module" in
+                    directory) printf '%s\n' "📁" ;;
+                    context) printf '%s\n' "📊" ;;
+                    git) printf '%s\n' "🌿" ;;
+                    model) printf '%s\n' "🤖" ;;
+                    cost) printf '%s\n' "💰" ;;
+                    time) printf '%s\n' "🕐" ;;
+                    battery) printf '%s\n' "🔋" ;;
+                esac
+            fi
+            ;;
+    esac
+}
+
+# Status glyph the preview should show for the active theme and STATUS_STYLE.
+# Monochrome forces the ASCII mark even when STATUS_STYLE is still emoji.
+theme_status_glyph() {
+    local theme="${1:-${COLOR_THEME:-default}}"
+    local style="${STATUS_STYLE:-emoji}"
+    if [ "$theme" = "monochrome" ]; then
+        style="ascii"
+    fi
+    case "$style" in
+        ascii) printf '%s\n' "[OK]" ;;
+        dots) printf '%s\n' "●" ;;
+        *)
+            case "$theme" in
+                minimal) printf '%s\n' "◦" ;;
+                vibrant) printf '%s\n' "💚" ;;
+                *) printf '%s\n' "🟢" ;;
+            esac
             ;;
     esac
 }
@@ -482,14 +585,6 @@ is_compact() {
     local module_compact="${1:-false}"
 
     if [ "${DISPLAY_MODE:-normal}" = "compact" ] || [ "$module_compact" = "true" ]; then
-        return 0  # true
-    fi
-    return 1  # false
-}
-
-# Check if in verbose mode
-is_verbose() {
-    if [ "${DISPLAY_MODE:-normal}" = "verbose" ]; then
         return 0  # true
     fi
     return 1  # false

@@ -37,12 +37,16 @@ module_memory() {
         if [ -n "$pages_free" ] && [ -n "$pages_active" ]; then
             local page_size=$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)
             local total_mem=$(sysctl -n hw.memsize 2>/dev/null)
+            # Empty or zero total (sysctl failure) would crash the raw divisions below
+            if [ "$(safe_int "$total_mem" 0)" -eq 0 ]; then
+                return
+            fi
             local used_pages=$((pages_active + pages_wired))
             local used_bytes=$((used_pages * page_size))
             local total_gb=$((total_mem / 1073741824))
             local used_gb=$((used_bytes / 1073741824))
 
-            mem_pct=$((used_bytes * 100 / total_mem))
+            mem_pct=$(safe_percent "$used_bytes" "$total_mem")
             mem_used="${used_gb}G"
             mem_total="${total_gb}G"
         fi
@@ -52,8 +56,12 @@ module_memory() {
         local avail=$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}')
 
         if [ -n "$total" ] && [ -n "$avail" ]; then
+            # Empty or zero MemTotal would crash the raw divisions below
+            if [ "$(safe_int "$total" 0)" -eq 0 ]; then
+                return
+            fi
             local used=$((total - avail))
-            mem_pct=$((used * 100 / total))
+            mem_pct=$(safe_percent "$used" "$total")
             mem_used="$((used / 1048576))G"
             mem_total="$((total / 1048576))G"
         fi
