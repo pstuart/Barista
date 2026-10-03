@@ -1450,8 +1450,9 @@ PROGRESS_BAR_WIDTH=8
 # Advanced Settings
 # =============================================================================
 
-# Default cache TTL (seconds) when a module calls cache_get without its own TTL.
-# Git, rate limits, updates, and weather use their module-specific settings.
+# Default cache TTL (seconds) for cache_get when the caller omits max_age.
+# Built-in fallback is 60. Git, rate limits, and updates pass their own
+# seconds and ignore this. Weather does not call cache_get.
 CACHE_MAX_AGE=60
 
 # Cache files live under CLAUDE_CONFIG_DIR (default: ~/.claude/barista-cache).
