@@ -112,6 +112,16 @@ assert_eq "thinking flag false hides segment even with data" \
     "$MODEL_ONLY" \
     "$(run_model false '{"model":{"display_name":"Claude Opus 4"},"output_style":{"name":"default"},"thinking":{"enabled":true,"effort":"xhigh"}}')"
 
+# --- Claude Code statusline: effort is an object with .level -------------------
+
+assert_eq "thinking.enabled plus effort.level renders On · xhigh" \
+    "$MODEL_ONLY $THINK_ICON On · xhigh" \
+    "$(run_model true '{"model":{"display_name":"Claude Opus 4"},"output_style":{"name":"default"},"thinking":{"enabled":true},"effort":{"level":"xhigh"}}')"
+
+assert_eq "effort.level alone renders the level" \
+    "$MODEL_ONLY $THINK_ICON max" \
+    "$(run_model true '{"model":{"display_name":"Claude Opus 4"},"output_style":{"name":"default"},"effort":{"level":"max"}}')"
+
 # --- Extras: output style still combines, invalid JSON is safe -----------------
 
 assert_eq "output style combines with thinking segment" \

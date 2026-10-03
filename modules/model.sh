@@ -37,9 +37,17 @@ model_thinking_segment() {
     local effort
     effort=$(echo "$input" | jq -r '
         try (
-            (if (.thinking | type) == "object" then .thinking.effort else null end) as $te
-            | (.effort // $te // .model.effort // .model.reasoning_effort // "")
-            | if type == "string" and length > 0 then . else "" end
+            def effort_text:
+              if type == "string" and length > 0 then .
+              elif type == "object" then (.level // .name // "" | if type == "string" then . else "" end)
+              else "" end;
+            (
+              (.effort | effort_text) as $top
+              | (if (.thinking | type) == "object" then (.thinking.effort | effort_text) else "" end) as $nested
+              | (if (.model | type) == "object" then (.model.effort | effort_text) else "" end) as $model
+              | (if (.model | type) == "object" then (.model.reasoning_effort | effort_text) else "" end) as $reasoning
+              | [$top, $nested, $model, $reasoning] | map(select(length > 0)) | first // ""
+            )
         ) catch ""
     ' 2>/dev/null)
 
