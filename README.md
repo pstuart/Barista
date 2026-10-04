@@ -92,7 +92,7 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
 | **context** | Visual progress bar showing context usage with auto-compact warnings |
 | **git** | Branch name, dirty status, staged/modified/untracked indicators |
 | **project** | Auto-detects Node.js, Nuxt, Next.js, Vite, Rust, Go, Python, Swift, and more |
-| **model** | Current Claude model and output style |
+| **model** | Current Claude model, output style, and optional thinking/reasoning-effort state (`MODEL_SHOW_THINKING`) |
 | **cost** | Session cost with burn rate ($/hour) and tokens per minute (TPM) |
 | **rate-limits** | Real-time 5-hour and 7-day rate limit tracking with projections |
 | **time** | Current date and time |
