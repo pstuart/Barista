@@ -324,7 +324,7 @@ module_rate_limits() {
         local max_history_size=51200
         local current_size=0
         if [ -f "$history_file" ]; then
-            current_size=$(_file_size "$history_file")
+            current_size=$(_file_stat %z %s "$history_file")
         fi
 
         # Cleanup first if file is too large
