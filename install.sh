@@ -26,7 +26,6 @@ INSTALL_MODE="interactive"
 STATUS_STYLE="emoji"
 PROGRESS_FILLED="█"
 PROGRESS_EMPTY="░"
-SEPARATOR_STYLE="pipe"
 SEPARATOR_CHAR=" | "
 COLOR_THEME="default"
 DISPLAY_MODE="normal"
@@ -75,7 +74,6 @@ BACKUP_MANIFEST="$BACKUP_DIR/manifest.json"
 GITHUB_REPO="pstuart/Barista"
 LOCAL_VERSION=""
 REMOTE_VERSION=""
-UPDATE_AVAILABLE="false"
 
 # Homebrew formula pins tagged tarballs; never overwrite Cellar/opt via --update.
 _is_homebrew_prefix() {
@@ -178,7 +176,6 @@ check_for_updates() {
     fi
 
     if version_lt "$local_ver" "$remote_ver"; then
-        UPDATE_AVAILABLE="true"
         REMOTE_VERSION="$remote_ver"
         return 0
     fi
@@ -233,7 +230,6 @@ interactive_update_check() {
     fi
 
     if version_lt "$local_ver" "$remote_ver"; then
-        UPDATE_AVAILABLE="true"
         REMOTE_VERSION="$remote_ver"
 
         echo ""
@@ -1254,10 +1250,10 @@ interactive_display_preferences() {
             " • Bullet"
 
         case "$CHOICE_RESULT" in
-            1) SEPARATOR_STYLE="double"; SEPARATOR_CHAR=" ║ " ;;
-            2) SEPARATOR_STYLE="arrow"; SEPARATOR_CHAR=" › " ;;
-            3) SEPARATOR_STYLE="bullet"; SEPARATOR_CHAR=" • " ;;
-            *) SEPARATOR_STYLE="pipe"; SEPARATOR_CHAR=" | " ;;
+            1) SEPARATOR_CHAR=" ║ " ;;
+            2) SEPARATOR_CHAR=" › " ;;
+            3) SEPARATOR_CHAR=" • " ;;
+            *) SEPARATOR_CHAR=" | " ;;
         esac
     else
         interactive_choice "Separator Style:" \
@@ -1267,10 +1263,10 @@ interactive_display_preferences() {
             " / Slash"
 
         case "$CHOICE_RESULT" in
-            1) SEPARATOR_STYLE="colon"; SEPARATOR_CHAR=" : " ;;
-            2) SEPARATOR_STYLE="dash"; SEPARATOR_CHAR=" - " ;;
-            3) SEPARATOR_STYLE="slash"; SEPARATOR_CHAR=" / " ;;
-            *) SEPARATOR_STYLE="pipe"; SEPARATOR_CHAR=" | " ;;
+            1) SEPARATOR_CHAR=" : " ;;
+            2) SEPARATOR_CHAR=" - " ;;
+            3) SEPARATOR_CHAR=" / " ;;
+            *) SEPARATOR_CHAR=" | " ;;
         esac
     fi
     print_success "Separator: '$SEPARATOR_CHAR'"
@@ -1532,15 +1528,11 @@ validate_config() {
 # BACKUP/RESTORE
 # =============================================================================
 detect_existing_statusline() {
-    local existing_type=""
     local existing_command=""
     local existing_files=""
 
     if [ -f "$SETTINGS_FILE" ]; then
         existing_command=$(jq -r '.statusLine.command // empty' "$SETTINGS_FILE" 2>/dev/null)
-        if [ -n "$existing_command" ]; then
-            existing_type="command"
-        fi
     fi
 
     if [ -d "$BARISTA_DIR" ]; then

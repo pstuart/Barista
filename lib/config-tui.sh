@@ -13,11 +13,10 @@ _cfg_init_colors() {
         CFG_DIM=$'\033[2m'
         CFG_CYAN=$'\033[36m'
         CFG_GREEN=$'\033[32m'
-        CFG_YELLOW=$'\033[33m'
         CFG_MAGENTA=$'\033[35m'
         CFG_NC=$'\033[0m'
     else
-        CFG_BOLD=""; CFG_DIM=""; CFG_CYAN=""; CFG_GREEN=""; CFG_YELLOW=""; CFG_MAGENTA=""; CFG_NC=""
+        CFG_BOLD=""; CFG_DIM=""; CFG_CYAN=""; CFG_GREEN=""; CFG_MAGENTA=""; CFG_NC=""
     fi
 }
 
