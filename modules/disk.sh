@@ -37,7 +37,6 @@ module_disk() {
 
     local used_pct=$(echo "$df_output" | awk '{print $5}' | tr -d '%')
     local free_space=$(echo "$df_output" | awk '{print $4}')
-    local used_space=$(echo "$df_output" | awk '{print $3}')
 
     local result="$icon"
 
