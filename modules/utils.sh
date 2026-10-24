@@ -437,12 +437,11 @@ theme_status_glyph() {
 # =============================================================================
 
 # Resolve status-indicator glyphs according to STATUS_STYLE.
-# Usage: _status_style <levels> [variant]
-#   levels  3 or 4 (4 includes the orange band)
-#   variant 3-level → "[WARN]"; 4-level → "[MED]" for the yellow position
+# Usage: _status_style <levels>
+#   levels 3 or 4 (4 includes the orange band); the ascii yellow label follows
+#   the band count: 3-level → "[WARN]", 4-level → "[MED]"
 _status_style() {
     local levels="${1:-3}"
-    local variant="${2:-$1}"
     local green="${STATUS_GREEN:-🟢}"
     local yellow="${STATUS_YELLOW:-🟡}"
     local orange="${STATUS_ORANGE:-🟠}"
@@ -451,7 +450,7 @@ _status_style() {
     case "${STATUS_STYLE:-emoji}" in
         ascii)
             green="[OK]"
-            if [ "$variant" = "4" ]; then
+            if [ "$levels" -ge 4 ] 2>/dev/null; then
                 yellow="[MED]"
             else
                 yellow="[WARN]"
@@ -495,7 +494,7 @@ get_status() {
     fi
 
     local green yellow red prefix
-    read -r green yellow red <<< "$(_status_style 3 3)"
+    read -r green yellow red <<< "$(_status_style 3)"
     prefix="$(_display_prefix)"
 
     if [ "$value" -ge "$critical" ] 2>/dev/null; then
@@ -522,7 +521,7 @@ get_status_4level() {
     fi
 
     local green yellow orange red prefix
-    read -r green yellow orange red <<< "$(_status_style 4 4)"
+    read -r green yellow orange red <<< "$(_status_style 4)"
     prefix="$(_display_prefix)"
 
     if [ "$value" -ge "$high" ] 2>/dev/null; then
