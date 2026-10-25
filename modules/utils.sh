@@ -338,48 +338,32 @@ theme_default_icon() {
     local module="$1"
     local theme="${2:-${COLOR_THEME:-default}}"
     case "$theme" in
-        minimal)
+        minimal|vibrant|monochrome)
+            # Derive the glyph from apply_theme itself so the preview cannot drift
+            # from the real theme table. Only the theme's unset-variable fallback
+            # is wanted here, so blank the variable in a subshell first.
             case "$module" in
-                directory) printf '%s\n' "→" ;;
-                context) printf '%s\n' "◐" ;;
-                git) printf '%s\n' "⎇" ;;
-                model) printf '%s\n' "◈" ;;
-                cost) printf '%s\n' '$' ;;
-                battery) printf '%s\n' "⚡" ;;
-                cpu) printf '%s\n' "▪" ;;
-                memory) printf '%s\n' "▫" ;;
-                node) printf '%s\n' "⬡" ;;
+                directory) local var=DIRECTORY_ICON ;;
+                context) local var=CONTEXT_ICON ;;
+                git) local var=GIT_ICON ;;
+                model) local var=MODEL_ICON ;;
+                cost) local var=COST_ICON ;;
+                time) local var=TIME_CLOCK_ICON ;;
+                battery) local var=BATTERY_ICON ;;
+                cpu) local var=CPU_ICON ;;
+                memory) local var=MEMORY_ICON ;;
+                node) local var=NODE_ICON ;;
+                *) return ;;
             esac
-            ;;
-        vibrant)
-            case "$module" in
-                directory) printf '%s\n' "📂" ;;
-                context) printf '%s\n' "🎯" ;;
-                git) printf '%s\n' "🔀" ;;
-                model) printf '%s\n' "🧠" ;;
-                cost) printf '%s\n' "💸" ;;
-                time) printf '%s\n' "⏰" ;;
-                battery) printf '%s\n' "🔌" ;;
-                cpu) printf '%s\n' "⚙️" ;;
-                memory) printf '%s\n' "💾" ;;
-                node) printf '%s\n' "💎" ;;
-            esac
-            ;;
-        monochrome)
-            case "$module" in
-                directory) printf '%s\n' "DIR:" ;;
-                context) printf '%s\n' "CTX:" ;;
-                git) printf '%s\n' "GIT:" ;;
-                model) printf '%s\n' "AI:" ;;
-                cost) printf '%s\n' '$:' ;;
-                time) printf '%s\n' "TIME:" ;;
-                battery) printf '%s\n' "BAT:" ;;
-                cpu) printf '%s\n' "CPU:" ;;
-                memory) printf '%s\n' "MEM:" ;;
-                node) printf '%s\n' "NODE:" ;;
-            esac
+            (
+                COLOR_THEME="$theme"
+                eval "unset $var"
+                apply_theme
+                eval "printf '%s\\n' \"\${$var-}\""
+            )
             ;;
         nerd)
+            # Every nerd icon default is empty; only the status style is set.
             ;;
         *)
             local icons="${USE_ICONS:-true}"

@@ -218,6 +218,68 @@ assert_eq "icons default on returns icon" "ICON" "$(get_icon ICON FB)"
 USE_ICONS="true"
 
 # -----------------------------------------------------------------------------
+# theme_default_icon <module> [theme]
+# Preview glyph for a module. For minimal/vibrant/monochrome it must equal the
+# glyph apply_theme assigns to that module's icon variable when it is unset, so
+# the preview cannot drift from the real theme table. Nerd has no icon glyphs,
+# and the default theme keeps its USE_ICONS/USE_EMOJI text-label fallbacks.
+# Each probe runs in a subshell so apply_theme's writes stay out of this shell.
+# -----------------------------------------------------------------------------
+echo "=== theme_default_icon Tests ==="
+unset COLOR_THEME STATUS_STYLE DIRECTORY_ICON CONTEXT_ICON GIT_ICON MODEL_ICON COST_ICON \
+      TIME_DATE_ICON TIME_CLOCK_ICON BATTERY_ICON CPU_ICON MEMORY_ICON NODE_ICON
+
+theme_icon_probe() {
+    # $1 = theme, $2 = module. Prints apply_theme's assigned icon variable.
+    local theme="$1" module="$2" var
+    case "$module" in
+        directory) var=DIRECTORY_ICON ;;
+        context) var=CONTEXT_ICON ;;
+        git) var=GIT_ICON ;;
+        model) var=MODEL_ICON ;;
+        cost) var=COST_ICON ;;
+        time) var=TIME_CLOCK_ICON ;;
+        battery) var=BATTERY_ICON ;;
+        cpu) var=CPU_ICON ;;
+        memory) var=MEMORY_ICON ;;
+        node) var=NODE_ICON ;;
+    esac
+    (
+        COLOR_THEME="$theme"
+        unset "$var"
+        apply_theme
+        eval "printf '%s' \"\${$var-}\""
+    )
+}
+
+for theme in minimal vibrant monochrome nerd; do
+    for module in directory context git model cost time battery cpu memory node; do
+        assert_eq "theme_default_icon $theme/$module matches apply_theme" \
+            "$(theme_icon_probe "$theme" "$module")" \
+            "$(theme_default_icon "$module" "$theme")"
+    done
+done
+assert_eq "nerd theme_default_icon is empty" "" "$(theme_default_icon directory nerd)"
+
+# The default theme keeps its explicit label fallbacks, unchanged.
+USE_ICONS="false"
+USE_EMOJI="true"
+assert_eq "default theme icons off: directory label" "DIR:"   "$(theme_default_icon directory default)"
+assert_eq "default theme icons off: context label"   "CTX:"   "$(theme_default_icon context default)"
+assert_eq "default theme icons off: git label"       "GIT:"   "$(theme_default_icon git default)"
+assert_eq "default theme icons off: model label"     "MODEL:" "$(theme_default_icon model default)"
+assert_eq "default theme icons off: cost label"      "COST:"  "$(theme_default_icon cost default)"
+assert_eq "default theme icons off: time label"      "TIME:"  "$(theme_default_icon time default)"
+assert_eq "default theme icons off: battery label"   "BAT:"   "$(theme_default_icon battery default)"
+assert_eq "default theme icons off: cpu has no label" ""      "$(theme_default_icon cpu default)"
+USE_ICONS="true"
+USE_EMOJI="false"
+assert_eq "USE_EMOJI=false also forces labels"       "DIR:"   "$(theme_default_icon directory default)"
+USE_EMOJI="true"
+assert_eq "default theme icons on: directory emoji"  "📁"     "$(theme_default_icon directory default)"
+assert_eq "default theme icons on: time emoji"       "🕐"     "$(theme_default_icon time default)"
+
+# -----------------------------------------------------------------------------
 # is_compact [module_flag] -- return-code helper keyed on DISPLAY_MODE.
 # is_compact is additionally true when its module-flag arg == "true".
 # -----------------------------------------------------------------------------
