@@ -359,6 +359,7 @@ SEPARATOR=" | "           # Section separator (or " › ", " • ", etc.)
 DISPLAY_MODE="normal"     # "normal", "compact", "verbose"
 COLOR_THEME="default"     # "default", "minimal", "vibrant", "monochrome", "nerd"
 USE_ICONS="true"          # Enable emoji icons
+USE_STATUS_INDICATORS="true"  # Enable colored status dots/emoji
 STATUS_STYLE="emoji"      # "emoji", "ascii", "dots"
 
 # Custom status indicators (STATUS_STYLE="emoji"; COLOR_THEME fills indicator and icon variables only when they are still unset, and shipped barista.conf already sets the default emoji, so minimal, vibrant, and nerd do not replace them. monochrome still forces STATUS_STYLE=ascii and USE_ICONS=false).
@@ -386,13 +387,29 @@ MODULE_COST="true"
 MODULE_RATE_LIMITS="true"
 MODULE_TIME="true"
 MODULE_BATTERY="true"
+MODULE_SANDBOX="true"       # Lock icon when in a macOS app sandbox
+MODULE_VERSION="true"       # Version notice after startup
+MODULE_UPDATE="true"        # Daily update check
 
 # System modules (off by default)
 MODULE_CPU="false"
 MODULE_MEMORY="false"
 MODULE_DISK="false"
 MODULE_NETWORK="false"
+MODULE_UPTIME="false"
 MODULE_LOAD="false"
+MODULE_TEMPERATURE="false"
+MODULE_BRIGHTNESS="false"
+MODULE_PROCESSES="false"
+
+# Development and extra modules (off by default)
+MODULE_DOCKER="false"
+MODULE_NODE="false"
+MODULE_WEATHER="false"
+MODULE_TIMEZONE="false"
+
+# Module display order
+MODULE_ORDER="sandbox,directory,context,git,project,model,cost,rate-limits,time,battery"
 
 # =============================================================================
 # RATE LIMIT SETTINGS (v1.2.0+)
@@ -405,9 +422,6 @@ RATE_HIGH_THRESHOLD=95          # Orange/red boundary
 RATE_SHOW_PROGRESS_BAR="false"  # Optional progress bars for 5h/7d usage
 RATE_PROGRESS_BAR_WIDTH=""      # Empty = use global PROGRESS_BAR_WIDTH
 
-# Custom order
-MODULE_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
-
 # =============================================================================
 # TERMINAL LAYOUT (v1.5.0+)
 # =============================================================================
@@ -415,7 +429,16 @@ MODULE_ORDER="directory,context,git,project,model,cost,rate-limits,time,battery"
 LAYOUT_MODE="smart"          # "smart", "newline", "wrap", "truncate", "none"
 TERMINAL_WIDTH=""            # Manual override (empty = auto-detect)
 RIGHT_SIDE_RESERVE=20        # Space reserved for Claude's right-side display
+
+# =============================================================================
+# ADVANCED SETTINGS
+# =============================================================================
+
+CACHE_MAX_AGE=60             # Default cache TTL (seconds) for cache_get() when no max_age is passed
+DEBUG_MODE="false"           # Debug logging to $CLAUDE_CONFIG_DIR/barista.log
 ```
+
+Per-module settings (icons, thresholds, formats, and TTLs such as `GIT_CACHE_TTL`, `RATE_CACHE_TTL`, `WEATHER_CACHE_TTL`, `VERSION_SHOW_DURATION`, and `UPDATE_CHECK_INTERVAL`) are documented inline in the shipped `barista.conf`.
 
 ### Preset Recipes
 
