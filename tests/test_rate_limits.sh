@@ -124,6 +124,25 @@ out="$(_check_backoff)"; rc=$?
 assert_eq "empty duration falls back to RATE_BACKOFF_SECONDS" "0" "$rc"
 unset RATE_BACKOFF_SECONDS
 
+# Non-numeric first line (e.g. a raw HTTP-date retry-after header or a corrupted
+# file) -> also falls back to the default; it must not leak into $(( )).
+RATE_BACKOFF_SECONDS=999999
+printf 'Wed, 21 Oct 2026 07:28:00 GMT\n' > "$BACKOFF_FILE"
+out="$(_check_backoff)"; rc=$?
+assert_eq "non-numeric duration returns zero"                 "0" "$rc"
+assert_eq "non-numeric duration prints a numeric remaining"   "1" "$(printf '%s' "$out" | grep -qE '^[0-9]+$' && echo 1 || echo 0)"
+assert_eq "non-numeric duration falls back to default"        "0" "$([ "$out" -gt 900000 ] && echo 0 || echo 1)"
+unset RATE_BACKOFF_SECONDS
+
+# Zero duration -> treated as invalid (a 0 would end the cooldown instantly).
+RATE_BACKOFF_SECONDS=999999
+printf '0\n' > "$BACKOFF_FILE"
+out="$(_check_backoff)"; rc=$?
+assert_eq "zero duration returns zero"                        "0" "$rc"
+assert_eq "zero duration prints a numeric remaining"          "1" "$(printf '%s' "$out" | grep -qE '^[0-9]+$' && echo 1 || echo 0)"
+assert_eq "zero duration falls back to default"               "0" "$([ "$out" -gt 900000 ] && echo 0 || echo 1)"
+unset RATE_BACKOFF_SECONDS
+
 # -----------------------------------------------------------------------------
 # _get_projection_status <projected>
 # The 5h/7d projection indicator (rate-limits.sh:178). Suppressed (empty) when

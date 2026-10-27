@@ -99,10 +99,19 @@ _check_backoff() {
         return 1
     fi
 
-    # Read retry-after duration from file (first line), fall back to default
+    # Read retry-after duration from file (first line), fall back to default.
+    # The file is written from an HTTP header or can be corrupted on disk, so
+    # only accept a positive integer here: a non-numeric value would raise a
+    # shell arithmetic error and a 0 would silently disable the cooldown.
     local stored_duration
     stored_duration=$(head -1 "$backoff_file" 2>/dev/null)
-    local duration="${stored_duration:-$default_duration}"
+    local duration=""
+    stored_duration="${stored_duration//[[:space:]]/}"
+    case "$stored_duration" in
+        ''|*[!0-9]*) duration="$default_duration" ;;
+        0*)          duration="$default_duration" ;;
+        *)           duration="$stored_duration" ;;
+    esac
 
     local backoff_time
     backoff_time=$(_file_mtime "$backoff_file")
