@@ -29,8 +29,8 @@ A feature-rich, modular statusline for [Claude Code CLI](https://docs.anthropic.
 
 ### v1.6.1
 
-- **Hex-Encoded Keychain Fix** - Handles macOS 15+ and recent Claude Code versions that store OAuth credentials as hex-encoded data in the Keychain (community contribution by @gcko)
-- Progressive fallback: tries plain JSON, then hex-decoding via `xxd`, then regex extraction
+- **Private credential file** - Reads Claude Code OAuth from an owner-only `.credentials.json` file. No system Keychain access or migration. File permissions do not protect against other processes running as the same user.
+- **Fail-closed credentials** - Missing, unsafe, malformed, or unrelated credential files return no token without invoking `security`.
 
 ### v1.6.0
 
@@ -522,7 +522,7 @@ MODULE_ORDER="...,mycustom,..."
 
 ### Rate limits show "--"
 - Ensure you're using Claude Code with a Pro/Team subscription
-- Check you're on macOS with credentials stored in Keychain
+- Configure Claude Code to expose an owner-only `.credentials.json` in `CLAUDE_CONFIG_DIR` (default `~/.claude`), then sign in again if needed. Keychain-only credentials are not read or migrated.
 - Verify you're logged in (`claude login`)
 
 ### Modules not loading

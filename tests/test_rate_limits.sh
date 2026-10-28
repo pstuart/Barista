@@ -1,8 +1,8 @@
 #!/bin/bash
 # ABOUTME: Tests for modules/rate-limits.sh -- _parse_reset_epoch (the #38 resets_at
 # ABOUTME: ISO-8601 -> epoch parser that works on BSD/macOS and GNU/Linux date) and
-# ABOUTME: credential-file permission enforcement and _check_backoff (the post-429
-# ABOUTME: cooldown-state file reader).
+# ABOUTME: credential-file permission enforcement, no-Keychain fallback, and
+# ABOUTME: _check_backoff (the post-429 cooldown-state file reader).
 # ABOUTME: Run with: bash tests/test_rate_limits.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -56,7 +56,13 @@ echo "=== Credential Permission Tests ==="
 TOKEN_CONFIG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/barista-token-test.XXXXXX")"
 TOKEN_BIN="$TOKEN_CONFIG_DIR/bin"
 mkdir -p "$TOKEN_BIN"
-printf '#!/bin/sh\nexit 1\n' > "$TOKEN_BIN/security"
+cat > "$TOKEN_BIN/security" <<'STUB'
+#!/bin/sh
+printf 'unexpected Keychain invocation\n' >> "$KEYCHAIN_SENTINEL"
+exit 1
+STUB
+KEYCHAIN_SENTINEL="$TOKEN_CONFIG_DIR/keychain-called"
+export KEYCHAIN_SENTINEL
 chmod 700 "$TOKEN_BIN/security"
 printf '{"claudeAiOauth":{"accessToken":"permission-test-token"}}\n' > "$TOKEN_CONFIG_DIR/.credentials.json"
 
@@ -75,7 +81,25 @@ assert_eq "world-readable credentials file is rejected" \
     "" \
     "$(CLAUDE_CONFIG_DIR="$TOKEN_CONFIG_DIR" PATH="$TOKEN_BIN:$PATH" _get_claude_token)"
 
-rm -f "$TOKEN_CONFIG_DIR/.credentials.json" "$TOKEN_BIN/security"
+rm -f "$TOKEN_CONFIG_DIR/.credentials.json"
+
+# -----------------------------------------------------------------------------
+# Missing, malformed or unrelated credentials must fail closed without asking
+# security for credentials (the sentinel is local and never reads Keychain).
+# -----------------------------------------------------------------------------
+assert_eq "missing credentials file returns no token" \
+    "" "$(CLAUDE_CONFIG_DIR="$TOKEN_CONFIG_DIR" PATH="$TOKEN_BIN:$PATH" _get_claude_token)"
+printf '{not-json' > "$TOKEN_CONFIG_DIR/.credentials.json"
+chmod 600 "$TOKEN_CONFIG_DIR/.credentials.json"
+assert_eq "malformed credentials return no token" \
+    "" "$(CLAUDE_CONFIG_DIR="$TOKEN_CONFIG_DIR" PATH="$TOKEN_BIN:$PATH" _get_claude_token)"
+printf '{"mcpOAuth":{"server":{"accessToken":"unrelated-token"}}}' > "$TOKEN_CONFIG_DIR/.credentials.json"
+assert_eq "unrelated MCP token is not used" \
+    "" "$(CLAUDE_CONFIG_DIR="$TOKEN_CONFIG_DIR" PATH="$TOKEN_BIN:$PATH" _get_claude_token)"
+assert_eq "no credential path calls security" "false" "$([ -e "$KEYCHAIN_SENTINEL" ] && echo true || echo false)"
+rm -f "$TOKEN_CONFIG_DIR/.credentials.json" "$KEYCHAIN_SENTINEL"
+
+rm -f "$TOKEN_BIN/security"
 rmdir "$TOKEN_BIN" "$TOKEN_CONFIG_DIR" 2>/dev/null
 
 # Sandbox CACHE_DIR so the suite never touches the real ~/.claude/barista-cache.
