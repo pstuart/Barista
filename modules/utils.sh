@@ -331,6 +331,24 @@ apply_theme() {
 }
 
 
+# Name of the icon variable apply_theme assigns for a module.
+# Usage: _theme_icon_var <module>  (returns non-zero for an unknown module)
+_theme_icon_var() {
+    case "$1" in
+        directory) printf '%s\n' DIRECTORY_ICON ;;
+        context) printf '%s\n' CONTEXT_ICON ;;
+        git) printf '%s\n' GIT_ICON ;;
+        model) printf '%s\n' MODEL_ICON ;;
+        cost) printf '%s\n' COST_ICON ;;
+        time) printf '%s\n' TIME_CLOCK_ICON ;;
+        battery) printf '%s\n' BATTERY_ICON ;;
+        cpu) printf '%s\n' CPU_ICON ;;
+        memory) printf '%s\n' MEMORY_ICON ;;
+        node) printf '%s\n' NODE_ICON ;;
+        *) return 1 ;;
+    esac
+}
+
 # Glyph apply_theme would assign for one module when that icon variable is still unset.
 # The nerd theme's defaults are empty, so this prints nothing for it.
 # Usage: theme_default_icon <module> [theme]
@@ -342,19 +360,8 @@ theme_default_icon() {
             # Derive the glyph from apply_theme itself so the preview cannot drift
             # from the real theme table. Only the theme's unset-variable fallback
             # is wanted here, so blank the variable in a subshell first.
-            case "$module" in
-                directory) local var=DIRECTORY_ICON ;;
-                context) local var=CONTEXT_ICON ;;
-                git) local var=GIT_ICON ;;
-                model) local var=MODEL_ICON ;;
-                cost) local var=COST_ICON ;;
-                time) local var=TIME_CLOCK_ICON ;;
-                battery) local var=BATTERY_ICON ;;
-                cpu) local var=CPU_ICON ;;
-                memory) local var=MEMORY_ICON ;;
-                node) local var=NODE_ICON ;;
-                *) return ;;
-            esac
+            local var
+            var=$(_theme_icon_var "$module") || return
             (
                 COLOR_THEME="$theme"
                 eval "unset $var"

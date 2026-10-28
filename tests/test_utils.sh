@@ -232,18 +232,7 @@ unset COLOR_THEME STATUS_STYLE DIRECTORY_ICON CONTEXT_ICON GIT_ICON MODEL_ICON C
 theme_icon_probe() {
     # $1 = theme, $2 = module. Prints apply_theme's assigned icon variable.
     local theme="$1" module="$2" var
-    case "$module" in
-        directory) var=DIRECTORY_ICON ;;
-        context) var=CONTEXT_ICON ;;
-        git) var=GIT_ICON ;;
-        model) var=MODEL_ICON ;;
-        cost) var=COST_ICON ;;
-        time) var=TIME_CLOCK_ICON ;;
-        battery) var=BATTERY_ICON ;;
-        cpu) var=CPU_ICON ;;
-        memory) var=MEMORY_ICON ;;
-        node) var=NODE_ICON ;;
-    esac
+    var=$(_theme_icon_var "$module") || return
     (
         COLOR_THEME="$theme"
         unset "$var"
