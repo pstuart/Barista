@@ -50,9 +50,16 @@ _get_claude_token() {
     if [ -f "$creds_file" ]; then
         if _credentials_file_is_private "$creds_file"; then
             local file_token
-            file_token=$(jq -r '.claudeAiOauth.accessToken // empty' "$creds_file" 2>/dev/null)
-            if [ -n "$file_token" ]; then
-                echo "$file_token"
+            # Parse the entire file before emitting anything. Reject multiple
+            # documents, malformed input and non-string tokens, even if jq
+            # produced partial output before reporting an error.
+            if file_token=$(jq -ers '
+                select(length == 1) | .[0] |
+                select(type == "object") | .claudeAiOauth |
+                select(type == "object") | .accessToken |
+                select(type == "string") | select(length > 0)
+            ' "$creds_file" 2>/dev/null); then
+                printf '%s\n' "$file_token"
                 return
             fi
         else
