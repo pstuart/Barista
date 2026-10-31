@@ -6,43 +6,6 @@ A modular, shell-based statusline for Claude Code CLI that displays real-time de
 
 Barista is a **Bash shell script** project (Bash 3.2+ compatible for macOS). It generates a customizable status line that Claude Code displays at the bottom of the terminal. The architecture is modular - each piece of information (git, battery, CPU, etc.) is handled by a separate module in the `modules/` directory.
 
-## Architecture
-
-```
-Barista/
-├── barista.sh          # Main entry point - loads config, modules, orchestrates output
-├── barista.conf        # Default configuration file
-├── install.sh          # Interactive installer with arrow key navigation
-├── VERSION             # Version tracking (semver)
-├── lib/
-│   └── config-tui.sh   # Runtime config TUI (`barista config`) — must ship with install
-├── modules/
-│   ├── utils.sh        # Shared utility functions (MUST load first)
-│   ├── directory.sh    # Current directory module
-│   ├── context.sh      # Context window usage with progress bar
-│   ├── git.sh          # Git branch and status
-│   ├── project.sh      # Project type detection (Node, Rust, Python, etc.)
-│   ├── model.sh        # Current Claude model info
-│   ├── cost.sh         # Session cost and burn rate
-│   ├── rate-limits.sh  # 5-hour and 7-day rate limit tracking
-│   ├── time.sh         # Date and time display
-│   ├── battery.sh      # Battery percentage (macOS)
-│   ├── cpu.sh          # CPU usage
-│   ├── memory.sh       # RAM usage
-│   ├── disk.sh         # Disk space
-│   ├── network.sh      # Network info
-│   ├── node.sh         # Node.js version
-│   ├── docker.sh       # Docker container status
-│   ├── weather.sh      # Weather via wttr.in
-│   ├── sandbox.sh      # Lock icon when in a macOS app sandbox
-│   ├── version.sh      # Barista version, shown briefly after startup
-│   ├── update.sh       # Daily GitHub check for new releases
-│   └── ...             # Additional modules
-├── tests/              # Regression tests (bash tests/test_*.sh, standalone)
-├── .shellcheckrc       # Shellcheck policy (SC2155, SC2034 disabled)
-└── README.md
-```
-
 ## How It Works
 
 1. **Claude Code calls `barista.sh`** with JSON input containing workspace info, model, context window data, etc.
@@ -57,103 +20,9 @@ Barista/
 4. **Modules are executed** in the order specified by `MODULE_ORDER` config
 5. **Output is concatenated** with the configured `SEPARATOR` and printed
 
-## Key Files
-
-### `barista.sh` (Main Entry Point)
-- Resolves `CLAUDE_CONFIG_DIR` (env var or defaults to `$HOME/.claude`)
-- Defines default configuration values
-- Loads configuration files in precedence order
-- Loads all module files from `modules/`
-- Contains module registry mapping names to functions
-- Executes enabled modules and joins output with separator
-- Adjusts separator spacing based on `DISPLAY_MODE`
-
-### `modules/utils.sh` (Required Utilities)
-- **Theme system**: `apply_theme()` sets icons and indicators based on `COLOR_THEME`
-- **Cache system**: File-based caching for expensive operations
-- **Safe number handling**: `safe_int()`, `safe_divide()`, `safe_percent()`
-- **Status indicators**: `get_status()` (3-level), `get_status_4level()` (4-level for rate limits)
-- **Icon handling**: `get_icon()` respects `USE_ICONS` setting
-- **Progress bar**: `progress_bar()` generates visual bars
-- **JSON helpers**: `json_get()`, `json_get_int()` for safe extraction
-- **Display mode checks**: `is_compact()`
-- **Logging**: `log_debug()` for debug mode
-
-### `barista.conf` (Configuration)
-All settings are documented with comments. Key settings:
-- `SEPARATOR` - Character(s) between modules (default: `" | "`)
-- `DISPLAY_MODE` - `"normal"`, `"compact"`, or `"verbose"`
-- `COLOR_THEME` - `"default"`, `"minimal"`, `"vibrant"`, `"monochrome"`, or `"nerd"`
-- `USE_ICONS` - Enable/disable emoji icons
-- `STATUS_STYLE` - `"emoji"`, `"ascii"`, or `"dots"`
-- `MODULE_*` - Enable/disable individual modules
-- `MODULE_ORDER` - Comma-separated list defining display order
-
-## Color Themes
-
-COLOR_THEME fills status indicators and icons only when those variables are still unset; shipped barista.conf assigns the default emoji first, so minimal, vibrant, and nerd do not restyle them, while monochrome still forces STATUS_STYLE=ascii and USE_ICONS=false.
-
-| Theme | Status Indicators | Icon Style | Use Case |
-|-------|-------------------|------------|----------|
-| **default** | 🟢 🟡 🟠 🔴 | Standard emoji (📁 📊 🌿) | General use |
-| **minimal** | ◦ ◦ ◦ ● | Geometric (→ ◐ ⎇ ◈) | Clean, subtle look |
-| **vibrant** | 💚 💛 🧡 ❤️ | Expressive (📂 🎯 🔀 🧠) | High visibility |
-| **monochrome** | [OK] [~~] [!!] [XX] | ASCII text (DIR: CTX: GIT:) | Terminal compatibility |
-| **nerd** |     | Nerd Font glyphs | Requires Nerd Font |
-
-Themes are applied via `apply_theme()` in `utils.sh` after all configs are loaded.
-
-## Module Structure
-
-Each module follows this pattern:
-
-```bash
-# =============================================================================
-# Module Name - Brief description
-# =============================================================================
-# Configuration options:
-#   OPTION_NAME    - Description (default: value)
-# =============================================================================
-
-module_name() {
-    local input="$1"  # JSON input (for modules that need it)
-
-    # Get configuration with defaults
-    local icon=$(get_icon "${MODULE_ICON:-📊}" "FALLBACK:")
-    local some_option="${SOME_OPTION:-default}"
-
-    # Do work...
-
-    # Build and output result
-    local result="$icon some_value"
-    echo "$result"
-}
-```
-
-### Module Types
-
-1. **Input-dependent modules** (context, model, cost): Receive JSON input as `$1`
-2. **Directory-dependent modules** (git, project): Receive current directory as `$1`
-3. **Standalone modules** (time, battery, cpu): Take no arguments
-
-## Display Modes
-
-The `DISPLAY_MODE` setting affects multiple behaviors:
-
-- **`normal`**: Balanced display with icons and key info, padded separators, spaces before status indicators
-- **`compact`**: Minimal display, no separator padding, no spaces before status indicators
-- **`verbose`**: Full display with all available information
-
-## Status Indicators
-
-Two systems for visual status:
-
-1. **3-level** (`get_status`): green/yellow/red based on warning/critical thresholds
-2. **4-level** (`get_status_4level`): green/yellow/orange/red for more granular rate limit display
-
-Both respect `DISPLAY_MODE` for spacing and `STATUS_STYLE` for appearance (emoji/ascii/dots).
-
 ## Adding a New Module
+
+The module template and module types ("the pattern above" in step 1) are in `.claude/rules/module-development.md`.
 
 1. Create `modules/mymodule.sh` following the pattern above
 2. Add to module registry in `barista.sh`:
@@ -224,22 +93,11 @@ Files stored in this directory:
 
 Modules also include their own `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` fallback for robustness if sourced independently.
 
-## Rate Limits Module
+## Path-scoped rules
 
-The rate limits module (`rate-limits.sh`) is the most complex:
-- Fetches usage from Anthropic API using OAuth token from macOS Keychain (handles hex-encoded Keychain output; also works on Linux and Windows/Git Bash)
-- Caches responses to avoid excessive API calls
-- Backs off after 429 responses, honoring `Retry-After` headers
-- Maintains history file for projection calculations
-- Implements file size caps to prevent memory issues
-- Shows 4-level color indicators for usage thresholds, plus optional progress bars (`RATE_SHOW_PROGRESS_BAR`)
+Detail that used to live in this file is in `.claude/rules/`. Each file loads automatically when Claude reads or edits a matching path:
 
-## Installation
-
-The installer (`install.sh`) provides:
-- Interactive module selection with arrow key navigation
-- Live preview of statusline
-- Multiple presets (minimal, developer, etc.)
-- Auto-update checking from GitHub
-- Backup/restore of previous statusline
-- Copies `barista.sh`, `VERSION`, `modules/`, and `lib/` (required for `barista config`)
+- `.claude/rules/architecture.md`: annotated tree of the repo, and what barista.sh, modules/utils.sh and barista.conf contain.
+- `.claude/rules/module-development.md`: color themes, module template and types, display modes, and status indicator systems.
+- `.claude/rules/rate-limits.md`: how modules/rate-limits.sh fetches, caches, backs off and projects usage.
+- `.claude/rules/installer.md`: what install.sh provides and copies.
