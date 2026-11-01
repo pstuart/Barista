@@ -44,6 +44,14 @@ assert_eq "an expired entry reads as empty"            ""           "$(cache_get
 cache_get wan_ip 60 >/dev/null 2>&1
 assert_eq "an expired entry returns non-zero"          "1"          "$?"
 
+# cache_get derives freshness from the file mtime via the shared portable-stat
+# helper: a just-written entry must hit, and the same entry must miss once it
+# is older than max_age.
+cache_set "ttl_probe" "fresh"
+assert_eq "a just-written entry is a hit"               "fresh"      "$(cache_get ttl_probe 120)"
+touch -t 200001010000 "$CACHE_DIR/ttl_probe"
+assert_eq "the same entry is a miss once expired"       ""           "$(cache_get ttl_probe 120)"
+
 # a missing key is a miss
 assert_eq "a missing key reads as empty"               ""           "$(cache_get nope)"
 cache_get nope >/dev/null 2>&1

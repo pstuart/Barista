@@ -75,7 +75,7 @@ cache_get() {
 
     # Check age
     local file_time
-    file_time=$(_file_mtime "$cache_file")
+    file_time=$(_file_stat %m %Y "$cache_file")
 
     if [ "$file_time" -eq 0 ]; then
         return 1
