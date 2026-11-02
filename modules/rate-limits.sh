@@ -117,11 +117,19 @@ _check_backoff() {
 _get_claude_usage() {
     local backoff_file="$CACHE_DIR/rate_limits_backoff"
 
-    # Check if we're in backoff period from a previous 429
-    local backoff_remaining
-    if backoff_remaining=$(_check_backoff); then
-        log_debug "rate-limits: in backoff period (${backoff_remaining}s remaining), skipping API call"
-        return 1
+    # Check if we're in backoff period from a previous 429. Callers that have
+    # already probed the backoff state export RATE_BACKOFF_PROBED to reuse it.
+    if [ "${RATE_BACKOFF_PROBED:-false}" = "true" ]; then
+        if [ "${RATE_BACKOFF_ACTIVE:-false}" = "true" ]; then
+            log_debug "rate-limits: in backoff period (${RATE_BACKOFF_REMAINING:-0}s remaining), skipping API call"
+            return 1
+        fi
+    else
+        local backoff_remaining
+        if backoff_remaining=$(_check_backoff); then
+            log_debug "rate-limits: in backoff period (${backoff_remaining}s remaining), skipping API call"
+            return 1
+        fi
     fi
 
     local token
@@ -229,6 +237,18 @@ _parse_reset_epoch() {
         echo 0
 }
 
+# Render the placeholder line shown when no usage data is available
+_render_placeholder() {
+    local show_5h="$1"
+    local show_7d="$2"
+    local label_5h="$3"
+    local label_7d="$4"
+    local result=""
+    [ "$show_5h" = "true" ] && result="${label_5h}:--"
+    [ "$show_7d" = "true" ] && result="${result:+$result }${label_7d}:--"
+    echo "$result"
+}
+
 module_rate_limits() {
     local show_5h="${RATE_SHOW_5H:-true}"
     local show_7d="${RATE_SHOW_7D:-true}"
@@ -257,9 +277,12 @@ module_rate_limits() {
     local in_backoff=false
     local backoff_remaining=0
 
-    # Check if we're in API backoff (429 cooldown)
+    # Check if we're in API backoff (429 cooldown). The probe result is shared
+    # with _get_claude_usage so it does not repeat the check in this process.
     if backoff_remaining=$(_check_backoff); then
         in_backoff=true
+        export RATE_BACKOFF_PROBED=true RATE_BACKOFF_ACTIVE=true
+        export RATE_BACKOFF_REMAINING="$backoff_remaining"
     fi
 
     # Read from shared cache if fresh
@@ -283,10 +306,7 @@ module_rate_limits() {
             local pause_icon=$(get_icon "⏸" "WAIT:")
             echo "${pause_icon} API cooldown $(format_cooldown "$backoff_remaining")"
         else
-            local result=""
-            [ "$show_5h" = "true" ] && result="${label_5h}:--"
-            [ "$show_7d" = "true" ] && result="${result:+$result }${label_7d}:--"
-            echo "$result"
+            _render_placeholder "$show_5h" "$show_7d" "$label_5h" "$label_7d"
         fi
         return
     fi
@@ -295,10 +315,7 @@ module_rate_limits() {
     local seven_day_obj=$(echo "$usage_data" | jq -r '.seven_day // .seven_day_opus // .seven_day_sonnet // "null"' 2>/dev/null)
 
     if [ "$five_hour_obj" = "null" ] || [ "$seven_day_obj" = "null" ]; then
-        local result=""
-        [ "$show_5h" = "true" ] && result="${label_5h}:--"
-        [ "$show_7d" = "true" ] && result="${result:+$result }${label_7d}:--"
-        echo "$result"
+        _render_placeholder "$show_5h" "$show_7d" "$label_5h" "$label_7d"
         return
     fi
 
