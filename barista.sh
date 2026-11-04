@@ -25,60 +25,16 @@ CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # =============================================================================
 # DEFAULT CONFIGURATION
 # =============================================================================
+# barista.conf (shipped with Barista, sourced below by load_config) supplies the
+# SEPARATOR, DISPLAY_MODE, USE_ICONS, USE_STATUS_INDICATORS, STATUS_STYLE,
+# PROGRESS_BAR_*, MODULE_*, CACHE_MAX_AGE, DEBUG_MODE, LAYOUT_MODE,
+# TERMINAL_WIDTH and RIGHT_SIDE_RESERVE defaults. Do not restate them here;
+# every consumer below reads them with a ${VAR:-fallback} guard so a missing or
+# rejected config still renders. Only the two module flags that barista.conf
+# does not define are kept here.
 
-# Core module defaults
-MODULE_DIRECTORY="true"
-MODULE_CONTEXT="true"
-MODULE_GIT="true"
-MODULE_PROJECT="true"
-MODULE_MODEL="true"
-MODULE_COST="true"
-MODULE_RATE_LIMITS="true"
-MODULE_TIME="true"
-MODULE_BATTERY="true"
-
-# System monitoring module defaults (disabled by default)
-MODULE_CPU="false"
-MODULE_MEMORY="false"
-MODULE_DISK="false"
-MODULE_NETWORK="false"
-MODULE_UPTIME="false"
-MODULE_LOAD="false"
-MODULE_TEMPERATURE="false"
-MODULE_BRIGHTNESS="false"
-MODULE_DOCKER="false"
-MODULE_NODE="false"
-MODULE_PROCESSES="false"
-MODULE_WEATHER="false"
-MODULE_TIMEZONE="false"
-MODULE_SANDBOX="true"
 MODULE_VERSION="true"
 MODULE_UPDATE="true"
-
-# Display defaults
-SEPARATOR=" | "
-PROGRESS_BAR_WIDTH=8
-PROGRESS_BAR_FILLED="█"
-PROGRESS_BAR_EMPTY="░"
-USE_ICONS="true"
-USE_STATUS_INDICATORS="true"
-STATUS_STYLE="emoji"
-DISPLAY_MODE="normal"
-
-# Advanced defaults
-CACHE_MAX_AGE=60
-DEBUG_MODE="false"
-
-# Terminal layout defaults
-# Layout mode: "smart", "wrap", "truncate", "newline", or "none"
-#   smart    - (default) Join with separator, wrap to new line at separator boundaries
-#   newline  - Add newline at end, Claude's right-side appears on next line
-#   wrap     - Pad output to line boundary (requires accurate terminal width)
-#   truncate - Cut output with "..." to fit on same line as Claude's right-side
-#   none     - No adjustments, natural terminal behavior
-LAYOUT_MODE="smart"
-TERMINAL_WIDTH=""            # Manual terminal width override (empty = auto-detect)
-RIGHT_SIDE_RESERVE=20        # Space reserved on right side of terminal (used by smart/truncate modes)
 
 # =============================================================================
 # CONFIGURATION LOADING
@@ -186,7 +142,7 @@ load_config_safe() {
 }
 
 # Load configuration in order of precedence:
-# 1. Built-in defaults (above)
+# 1. Built-in defaults (barista.conf below; plus MODULE_VERSION/MODULE_UPDATE above)
 # 2. Script directory config (barista.conf) — trusted, shipped with Barista
 # 3. User config ($CLAUDE_CONFIG_DIR/barista.conf) — trusted, user-owned
 # 4. Per-directory config (.barista.conf in current_dir) — UNTRUSTED, uses safe parser
