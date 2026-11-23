@@ -53,41 +53,26 @@ assert_eq "unknown style falls to both" "ICON NAME" "$(PROJECT_STYLE=bogus _form
 assert_eq "USE_ICONS=false beats style=icon" "NAME" "$(USE_ICONS=false PROJECT_STYLE=icon _format_project ICON NAME)"
 assert_eq "USE_ICONS=false, default style"   "NAME" "$(USE_ICONS=false _format_project ICON NAME)"
 
-# --- dev-server pgrep pattern -------------------------------------------------
-# module_project uses pgrep -f with an unescaped-pipe ERE pattern to detect
-# running dev servers (npm/yarn/pnpm/bun run dev).  The pre-fix version had
-# the pipes escaped (\|), which ERE pgrep treats as a literal `|`, so
-# the alternation never matched and the 🚀 indicator was silently invisible
-# on macOS.  These tests verify the corrected pattern matches and the old
-# broken one does not.
-#
-# We spawn a real long-running process with a distinctive argv so pgrep -f
-# can find it.  Cleanup is guaranteed via a subshell so a failing assert
-# cannot leak the process.
-(
-  bash -c 'exec -a "yarn dev testproject" sleep 60' &
-  _DEV_PID=$!
-  sleep 0.4
+# Exercise the module's own ERE against a real process with controlled argv.
+# Restrict matching PIDs to the fixture so a developer's servers cannot affect the result.
+project_dir=$(mktemp -d "${TMPDIR:-/tmp}/barista-project.XXXXXX") || exit 1
+trap 'rm -rf "$project_dir"' EXIT
+touch "$project_dir/package.json"
+mkfifo "$project_dir/ready" "$project_dir/finish" || exit 1
 
-  # Corrected pattern (unescaped pipes): must match the fake yarn dev process.
-  pgrep -f "npm.*dev|yarn.*dev|pnpm.*dev|bun.*dev" >/dev/null 2>&1 \
-    && echo "fixed_pattern_match" || echo "fixed_pattern_nomatch"
+project_with_process() {
+    local command_line=$1 fixture_pid
+    bash -c 'echo ready > "$1/ready"; read -r _ < "$1/finish"' "$command_line" "$project_dir" &
+    fixture_pid=$!
+    read -r _ < "$project_dir/ready"
+    pgrep() { command pgrep "$@" | grep -Fxq "$fixture_pid"; }
+    USE_ICONS=false PROJECT_DEV_ICON=DEV PROJECT_SHOW_DEV_SERVER=true PROJECT_SHOW_BUILD=false module_project "$project_dir"
+    echo done > "$project_dir/finish"
+    wait "$fixture_pid"
+}
 
-  # Legacy pattern (escaped pipes): must NOT match on this platform,
-  # documenting that the bug was real and the fix was necessary.
-  pgrep -f "npm.*dev\|yarn.*dev\|pnpm.*dev\|bun.*dev" >/dev/null 2>&1 \
-    && echo "legacy_pattern_match" || echo "legacy_pattern_nomatch"
-
-  kill "$_DEV_PID" 2>/dev/null
-  wait "$_DEV_PID" 2>/dev/null
-) > /tmp/_devpgrep_check.$$
-
-_fixed=$(sed -n '1p' /tmp/_devpgrep_check.$$ 2>/dev/null)
-_legacy=$(sed -n '2p' /tmp/_devpgrep_check.$$ 2>/dev/null)
-rm -f /tmp/_devpgrep_check.$$
-
-assert_eq "corrected dev-server pattern matches running process" "fixed_pattern_match"  "${_fixed:-}"
-assert_eq "legacy escaped-pipe pattern does not match"           "legacy_pattern_nomatch" "${_legacy:-}"
+assert_eq "running dev server adds its indicator" "Node.js DEV" "$(project_with_process 'yarn dev testproject')"
+assert_eq "idle project has no dev indicator" "Node.js" "$(project_with_process 'yarn start testproject')"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
